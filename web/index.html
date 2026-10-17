@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#173e35">
+  <title>LifeLine | Here to Help</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script src="/assets/api.js" defer></script>
+  <script src="/assets/app.js" defer></script>
+</head>
+<body data-connectivity="unknown">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="app-shell" id="app-shell">
+    <aside class="sidebar" aria-label="LifeLine navigation">
+      <div class="sidebar-top"><a class="brand" href="#chat" aria-label="LifeLine Chat"><span class="brand-mark" aria-hidden="true">+</span><span class="brand-name">LifeLine</span></a><button id="sidebar-toggle" class="icon-button" type="button" aria-label="Collapse sidebar" aria-expanded="true" aria-controls="main-nav"><span aria-hidden="true">&#9776;</span></button></div>
+      <nav id="main-nav" aria-label="Main navigation">
+        <a class="nav-item active" href="#chat" data-screen="chat" aria-current="page"><span class="nav-icon" aria-hidden="true">&#9633;</span><span class="nav-label">Chat</span></a>
+        <a class="nav-item" href="#trip" data-screen="trip"><span class="nav-icon" aria-hidden="true">&#9651;</span><span class="nav-label">Prepare Trip</span></a>
+        <a class="nav-item" href="#profile" data-screen="profile"><span class="nav-icon" aria-hidden="true">+</span><span class="nav-label">Medical Profile</span></a>
+      </nav>
+      <div class="sidebar-bottom"><span class="sidebar-symbol" aria-hidden="true">+</span><p class="sidebar-note">A little reassurance.<br>A clearer next step.</p><p class="sidebar-note small">AI guidance, not emergency care.</p></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="header-brand"><span>LifeLine</span><p>Intelligence Without Interruption</p></div>
+        <button class="emergency-button" id="emergency-open" type="button"><span aria-hidden="true">+</span> Emergency Help</button>
+      </header>
+      <main id="main" tabindex="-1">
+        <div class="page-meta"><span id="page-label">YOUR EVERYDAY SAFETY COMPANION</span><div class="status-group"><span id="internet-label" class="internet-state">Internet Connection Unknown</span><button id="status-open" class="connection-state" type="button" aria-haspopup="dialog"><span class="status-dot" id="connection-state" data-ready="false" aria-hidden="true"></span><span id="connection-label" role="status">Checking Local AI Status...</span><span aria-hidden="true">&#8599;</span></button></div></div>
+        <section id="screen-chat" class="screen" aria-label="Chat">
+          <div class="chat-panel">
+            <div class="chat-toolbar"><span class="eyebrow">A CALMER NEXT STEP</span><button class="text-button" id="clear-chat" type="button">+ New chat</button></div>
+            <div class="chat-content">
+              <section class="welcome" id="welcome" aria-labelledby="welcome-title"><div class="welcome-mark" aria-hidden="true">+</div><h1 id="welcome-title">How can I help you?</h1><p>Tell me what's happening.</p></section>
+              <div class="starters" id="starters" aria-label="Quick actions">
+                <button class="prompt" type="button" data-question="Someone is hurt. What details should I share to get general first-aid information?"><span class="prompt-icon" aria-hidden="true">+</span><span>Someone is hurt</span><span aria-hidden="true">&#8599;</span></button>
+                <button class="prompt" type="button" data-question="Someone feels sick. What information would help you provide general guidance?"><span class="prompt-icon" aria-hidden="true">&#9825;</span><span>Someone feels sick</span><span aria-hidden="true">&#8599;</span></button>
+                <button class="prompt" type="button" data-question="I need first-aid help. Where can I find verified information?"><span class="prompt-icon" aria-hidden="true">&#9633;</span><span>I need first-aid help</span><span aria-hidden="true">&#8599;</span></button>
+                <button class="prompt" id="trip-shortcut" type="button"><span class="prompt-icon" aria-hidden="true">&#9651;</span><span>Prepare for a trip</span><span aria-hidden="true">&#8599;</span></button>
+              </div>
+              <section class="conversation" id="conversation" aria-label="Conversation" hidden><div id="messages" role="log" aria-label="Chat messages" aria-live="polite" aria-relevant="additions"></div></section>
+            </div>
+            <div class="composer-area">
+              <p class="request-status" id="request-status" role="status"></p>
+              <div class="error-box" id="request-error" role="alert" hidden><p id="error-detail"></p><button class="text-button" id="retry-question" type="button">Retry question</button></div>
+              <form id="chat-form"><div class="composer"><label class="sr-only" for="question">Your question</label><textarea id="question" name="question" rows="2" maxlength="2000" placeholder="Describe what's happening..." aria-describedby="composer-help availability-detail"></textarea><button class="send-button" id="send-button" type="submit" aria-label="Send question" disabled><span aria-hidden="true">&#8593;</span></button></div></form>
+              <p id="availability-detail" class="availability-detail" role="status">Checking the service before you send.</p>
+              <p id="library-summary" class="availability-detail">Medical Library: Checking...</p>
+              <p class="composer-help" id="composer-help">Enter to send &middot; Shift + Enter for a new line</p>
+            </div>
+          </div>
+          <p class="safety-note"><strong>In immediate danger? Contact emergency services, not this chat.</strong> AI can make mistakes and is not a doctor.</p>
+          <p class="privacy-note" id="privacy-note">AI processing runs locally on the Dell. Use fictional scenarios for this prototype. Only your current question is sent to the local backend, not your profile or earlier messages. Internet status does not indicate AI readiness.</p>
+        </section>
+        <section id="screen-trip" class="screen" aria-labelledby="trip-title" hidden>
+          <div class="section-heading"><h1 id="trip-title">Prepare for Your Trip</h1><p>Tell LifeLine where you're going so your emergency information can be ready when you're offline.</p></div>
+          <div class="content-card">
+            <form id="trip-form"><label for="destination">Where are you headed? <span class="muted">(optional)</span></label><input id="destination" maxlength="120" autocomplete="off" placeholder="e.g. A weekend in Joshua Tree"><fieldset><legend>Choose an environment</legend><div class="environments">
+              <label class="environment"><input type="radio" name="environment" value="Desert"><span class="environment-icon" aria-hidden="true">&#9728;</span><strong>Desert</strong><span>Hot days, dry terrain</span></label>
+              <label class="environment"><input type="radio" name="environment" value="Snow"><span class="environment-icon" aria-hidden="true">&#10052;</span><strong>Snow</strong><span>Cold, ice and exposure</span></label>
+              <label class="environment"><input type="radio" name="environment" value="Mountains"><span class="environment-icon" aria-hidden="true">&#9651;</span><strong>Mountains</strong><span>Altitude and remote trails</span></label>
+              <label class="environment"><input type="radio" name="environment" value="Forest"><span class="environment-icon" aria-hidden="true">&#9827;</span><strong>Forest</strong><span>Woodland and wildlife</span></label>
+              <label class="environment"><input type="radio" name="environment" value="Beach"><span class="environment-icon" aria-hidden="true">&#8776;</span><strong>Beach</strong><span>Sun, sand and water</span></label>
+            </div></fieldset><button class="primary-button" id="prepare-trip" type="submit" disabled>Prepare Offline Information <span aria-hidden="true">&#8594;</span></button><p class="muted">Trip preparation is not yet available. Selections stay on this page only. Future trip packs will supplement the general library, not replace unrelated topics.</p></form>
+            <div class="feature-notice" role="status"><strong>Preparation unavailable</strong><p id="trip-status">Trip preparation is not connected yet. Nothing has been downloaded or saved for offline use.</p></div>
+            <section id="suggested-topics" hidden aria-labelledby="topics-title"><h2 id="topics-title">Suggested topics to research</h2><p class="muted">Planning ideas only, not a prepared safety pack or verified medical guidance.</p><ul id="topics-list" class="topic-list"></ul></section>
+          </div>
+        </section>
+        <section id="screen-profile" class="screen" aria-labelledby="profile-title" hidden>
+          <div class="section-heading"><span class="eyebrow">A PLACE FOR THE ESSENTIALS</span><h1 id="profile-title">Medical Profile <span class="demo-badge">FICTIONAL DEMO</span></h1><p>Try a profile with made-up details. Entirely optional.</p></div>
+          <div class="content-card"><div class="feature-notice"><strong>Only in this page's memory</strong><p>Do not enter real personal or health information. Nothing here is uploaded, stored on your device, or used in AI answers. Reloading or closing this page clears the profile. This is not a medical record.</p></div>
+            <form id="profile-form" autocomplete="off"><div class="profile-grid">
+              <div><label for="profile-name">Name</label><input id="profile-name" name="name" maxlength="80" placeholder="e.g. Alex Example"></div>
+              <div><label for="profile-age">Age</label><input id="profile-age" name="age" type="number" min="0" max="130" placeholder="e.g. 32"></div>
+              <div><label for="profile-allergies">Allergies</label><textarea id="profile-allergies" name="allergies" rows="2" maxlength="500" placeholder="Fictional allergies"></textarea></div>
+              <div><label for="profile-medications">Medications</label><textarea id="profile-medications" name="medications" rows="2" maxlength="500" placeholder="Fictional medications"></textarea></div>
+              <div><label for="profile-conditions">Conditions</label><textarea id="profile-conditions" name="conditions" rows="2" maxlength="500" placeholder="Fictional conditions"></textarea></div>
+              <div><label for="profile-contact">Emergency Contact</label><textarea id="profile-contact" name="contact" rows="2" maxlength="200" placeholder="A made-up name and number"></textarea></div>
+            </div><div class="form-actions"><button class="primary-button" id="profile-save" type="submit">Keep demo profile</button><button class="text-button" id="profile-edit" type="button" hidden>Edit profile</button><button class="text-button" id="profile-clear" type="button">Remove profile</button></div><p id="profile-summary" class="muted" role="status">No profile kept. Use fictional details only.</p></form>
+          </div>
+        </section>
+      </main>
+      <footer>LifeLine <span aria-hidden="true">&middot;</span> Here to help you find your next step.</footer>
+    </div>
+  </div>
+  <dialog id="emergency-dialog" aria-labelledby="emergency-title" aria-describedby="emergency-description"><div class="dialog-top"><h2 id="emergency-title">Get emergency help</h2><button id="emergency-close" class="close-button" type="button" aria-label="Close emergency help">&times;</button></div><p id="emergency-description">If someone is in immediate danger, contact emergency services now. Do not wait for an AI response.</p><a class="call-button" href="tel:911">Call 911 (United States)</a><p><strong>Calling requires a working phone or supported calling app and available communication service.</strong> This link only opens your dialer. You must place the call yourself.</p><p>Outside the US, use your local emergency number. LifeLine does not place calls automatically, contact responders, or share your location. Offline AI does not provide a phone connection.</p></dialog>
+  <dialog id="status-dialog" aria-labelledby="status-title"><div class="dialog-top"><h2 id="status-title">Connection &amp; readiness</h2><button id="status-close" class="close-button" type="button" aria-label="Close connection details">&times;</button></div><p id="status-explanation">Waiting for backend status.</p><dl class="resource-list"><div><dt>Local AI</dt><dd id="local-state">Not verified</dd></div><div><dt>Model</dt><dd id="model-name">Not verified</dd></div><div><dt>Medical Library</dt><dd id="references-state">Not verified</dd></div></dl><strong id="offline-label">Offline readiness unverified</strong><p>Internet access cannot currently be confirmed. Background colors indicate internet connectivity only, not AI readiness. Local AI and medical references are checked separately. AI availability does not mean emergency communication is available.</p><button id="refresh-status" class="text-button" type="button">Refresh status</button></dialog>
+</body>
+</html>

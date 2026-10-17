@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from classifier import classify
 
 DB = Path(__file__).with_name('lastline.db')
-app = FastAPI(title='LastLine MVP')
+app = FastAPI(title='LifeLine Prototype')
 cloud_available = True  # Demo switch, not a real network probe.
 lock = Lock()
 
@@ -92,6 +92,31 @@ def cloud_reports():
         return [json.loads(r['payload']) for r in conn.execute('SELECT payload FROM cloud_reports').fetchall()]
 
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.responses import JSONResponse
+from fastapi import Request
+from chat import router as chat_router
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    if request.url.path.startswith('/api/'):
+        return JSONResponse(status_code=422, content={
+            'ok': False, 'error': {
+                'code': 'invalid_request',
+                'message': 'Send a JSON object with a question of 1 to 2000 characters.'
+            }
+        })
+    return await request_validation_exception_handler(request, exc)
+
+app.include_router(chat_router)
+app.mount('/assets', StaticFiles(directory=Path(__file__).parent / 'web'), name='assets')
+
 @app.get('/')
 def dashboard():
+    return FileResponse(Path(__file__).parent / 'web' / 'index.html')
+
+@app.get('/legacy')
+def legacy_dashboard():
     return FileResponse(Path(__file__).with_name('dashboard.html'))

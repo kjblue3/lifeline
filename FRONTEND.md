@@ -39,7 +39,8 @@ Error: HTTP 503, {ok:false,error:{code,message}}
 
 Only the current question is sent. The profile and visible conversation history
 are never uploaded. Follow-ups are currently independent questions: visible
-history is not backend conversation memory. Refreshing clears frontend data.
+history is not backend conversation memory. Refreshing clears chat, profile, and
+planning inputs. Explicitly saved preparedness checkmarks persist separately.
 
 Real answer rendering requires `mode: "local"` and rejects `simulated: true`.
 Optional `sections:[{title,content}]` render as plain text. Sources show actual
@@ -86,18 +87,50 @@ instead of pretending a working model exists in the application.
 
 ## Other Screens
 
-Chat, Prepare Trip, and Medical Profile retain their existing navigation,
+Chat, Get Prepared, and Medical Profile retain their existing navigation,
 collapsible desktop sidebar, accessible mobile layout, and large controls.
 Emergency Help remains accessible regardless of AI readiness. The US `tel:911`
 link needs a compatible dialer and supported communication service; LifeLine
 does not contact responders automatically.
 
-Trip environment and description inputs are interactive, with planning-topic
-suggestions clearly distinguished from downloaded references. The prepare
-button remains disabled and says **Trip preparation is not connected yet**.
-Future trip preparation must supplement rather than replace the general library.
-Medical-search/trip capabilities in `api.js` remain disabled until their API and
-storage-confirmation contracts are agreed with Aryan.
+Get Prepared replaces the old research/download-based trip screen. A bundled
+12-category supply checklist works without internet or AI. Its source is the
+National Park Service's [Ten Essentials](https://www.nps.gov/articles/10essentials.htm),
+updated May 28, 2026 and checked October 17, 2026. Source metadata and concise
+per-item paraphrases live in `web/preparedness-library.js`; original-article
+links require internet, but the checklist and source notes do not.
+
+Environment, custom description, activity, and duration inputs record optional
+planning context only. They do not currently personalize recommendations or
+calculate quantities. All supply categories remain available. Activity-specific
+items are labeled for consideration, not as a requirement for every outing.
+The source-backed checklist is not a complete activity-specific safety plan or
+medical treatment guidance. Risky tools and fire supplies are omitted.
+
+`web/preparedness.js` handles checkboxes and explicit Save progress. Only
+`{libraryVersion,checked:[itemId,...]}` is persisted under
+`lifeline.preparedness.v1` in this browser's localStorage. Free text, activities,
+duration, environment, and profiles are not saved or uploaded. Checkmarks are
+packing progress, not an offline-ready or safety guarantee. Restore validates
+the library version and known IDs. Storage failures are visible and leave
+in-memory checkmarks usable. Clear saved progress removes only this key, not
+other browser data; it intentionally leaves current on-screen checkmarks intact.
+
+This small bundled preparedness library is independent of the backend medical
+database: using it does not change `/api/status` readiness. It loads as a local
+static asset and needs no preparation API, internet search, or external service.
+The app must still be served locally on the Dell; no remote-page offline cache
+or service worker has been added.
+
+Local AI personalization is disabled and labeled not connected.
+`LifeLineAPI.prepareSupplies()` is the future integration boundary and rejects
+without making a request. `config.endpoints.preparedness` is null and its
+capability false. Agree with Aryan on a local-only contract before connecting
+Kiran's ExecuTorch model. Recommended contract: environment/description,
+activity, and duration in; validated item IDs and actual library source IDs out.
+The client should keep the baseline accessible on any inference failure, reject
+unknown item/source IDs, and never replace verified supplies with unsupported
+medical output. No new backend route has been created or assumed.
 
 The six-field medical profile is optional and explicitly fictional. Save, edit,
 and remove work in page memory only. No localStorage, profile endpoint, or
@@ -127,14 +160,24 @@ With the local server running and the adapter disconnected:
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m playwright install chromium
 .\.venv\Scripts\python.exe frontend_check.py http://localhost:8000
+.\.venv\Scripts\python.exe preparedness_check.py http://localhost:8000
 ```
 
 This tests one guarded actual 503 request; successful inference responses use
 clearly nonmedical intercepted fixtures, not a live model. Coverage includes
 four-second polling, no overlapping requests, draft/history/focus retention,
 no automatic ask retries, readiness/library separation, status failures and
-recovery, safe sources, invalid responses, question-only payloads, profile/trip
+recovery, safe sources, invalid responses, question-only payloads, profile/preparedness
 controls, emergency help, reduced motion, and widths 320/390/768/1440.
+
+The preparedness check additionally covers explicit save/restore, corrupt and
+blocked storage, isolated clearing, safe context rendering, invalid duration,
+no-network AI guards, and fresh local page loads with external requests blocked
+and backend AI unavailable. For manual testing, open `/#prepared`, check a few
+items, Save progress, disconnect Wi-Fi, and reload while the local server stays
+running. Saved checks should return without inference. Current screenshots are
+`artifacts/lifeline-get-prepared-desktop.png` and
+`artifacts/lifeline-get-prepared-mobile.png`.
 
 Screenshots `artifacts/lifeline-local-desktop.png` and
 `artifacts/lifeline-local-mobile.png` show actual not-ready state. Older preview
@@ -142,5 +185,5 @@ screenshots are historical, not evidence of current functioning AI. The old
 `browser_check.py` targets earlier controls; use `frontend_check.py` for this UI.
 
 Kiran still owns real ExecuTorch inference. Aryan still owns medical retrieval,
-library readiness, trip APIs, secure profile persistence, and any future confirmed
+library readiness, any future preparedness API, secure profile persistence, and any future confirmed
 connectivity field. Browser fixtures are not validation of those backend features.

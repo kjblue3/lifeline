@@ -1,0 +1,15 @@
+{
+  "id": "/assets/",
+  "name": "LifeLine",
+  "short_name": "LifeLine",
+  "description": "An offline-ready emergency assistance interface. AI requires a separately connected local backend.",
+  "lang": "en",
+  "start_url": "/assets/index.html",
+  "scope": "/assets/",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#173e35",
+  "icons": [
+    { "src": "icons/lifeline.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

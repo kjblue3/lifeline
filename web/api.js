@@ -3,8 +3,8 @@
 window.LifeLineAPI = (() => {
   // Future integrations are intentionally unavailable. No speculative routes are called.
   const config = Object.freeze({
-    endpoints: Object.freeze({ status: '/api/status', ask: '/api/ask', medicalSearch: null, tripPrepare: null, tripStatus: null }),
-    capabilities: Object.freeze({ medicalSearch: false, tripPrepare: false, tripStatus: false })
+    endpoints: Object.freeze({ status: '/api/status', ask: '/api/ask', medicalSearch: null, preparedness: null, references: null, reference: null, transcription: null }),
+    capabilities: Object.freeze({ medicalSearch: false, preparedness: false, references: false, reference: false, transcription: false })
   });
   async function request(path, options = {}, timeout = 30000) {
     const controller = new AbortController();
@@ -25,11 +25,30 @@ window.LifeLineAPI = (() => {
   }
   return Object.freeze({
     config,
+    async readReferences() {
+      if (!config.capabilities.references || !config.endpoints.references) {
+        throw new Error('Library browsing is not connected yet.');
+      }
+      throw new Error('Completed library records require an agreed local integration contract.');
+    },
+    async transcribe() {
+      if (!config.capabilities.transcription || !config.endpoints.transcription) {
+        throw new Error('Offline voice input is not ready yet.');
+      }
+      throw new Error('Local transcription requires an agreed integration contract.');
+    },
+    // Future local integration requires an agreed endpoint and capability contract.
+    async prepareSupplies() {
+      if (!config.capabilities.preparedness || !config.endpoints.preparedness) {
+        throw new Error('Local AI preparedness is not connected. Use the bundled supply checklist.');
+      }
+      throw new Error('Local AI preparedness integration has no agreed request contract.');
+    },
     status: () => request(config.endpoints.status, {}, 8000),
     // The backend is stateless: never transmit the visible history or demo profile.
     ask: (question) => request(config.endpoints.ask, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question })
-    })
+    }, 180000) // Allow lazy model loading and slow local CPU generation.
   });
 })();
 

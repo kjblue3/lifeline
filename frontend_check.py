@@ -142,7 +142,8 @@ def main():
                     unknown.append(request.url)
                     route.abort()
             elif same_origin and request.method == 'GET' and url.path in (
-                    '/', '/assets/styles.css', '/assets/api.js', '/assets/app.js', '/favicon.ico'):
+                    '/', '/assets/styles.css', '/assets/api.js', '/assets/app.js',
+                    '/assets/preparedness-library.js', '/assets/preparedness.js', '/favicon.ico'):
                 route.continue_()
             else:
                 external.append(request.url)
@@ -158,7 +159,7 @@ def main():
             page.locator(f'[data-screen="{screen}"]').click()
             expect(page.locator(f'#screen-{screen}')).to_be_visible()
             expect(page.locator(f'[data-screen="{screen}"]')).to_have_attribute('aria-current', 'page')
-            for other in ('chat', 'trip', 'profile'):
+            for other in ('chat', 'prepared', 'profile'):
                 if other != screen:
                     expect(page.locator(f'#screen-{other}')).not_to_be_visible()
 
@@ -418,27 +419,22 @@ def main():
 
         check('Production connectivity stays unknown under navigator toggles; DOM-only color fixtures independent of AI', connectivity)
 
-        def trip():
-            navigate('trip')
-            page.locator('#destination').fill('Fictional test destination')
-            topics = {
-                'Desert': ['Heat and sun exposure', 'Water planning', 'Navigation and communication'],
-                'Snow': ['Cold exposure', 'Weather and visibility', 'Traction and equipment'],
-                'Mountains': ['Altitude awareness', 'Trail and weather planning', 'Remote communication'],
-                'Forest': ['Navigation', 'Bites and stings', 'Weather and shelter'],
-                'Beach': ['Water safety', 'Sun exposure', 'Tides and local conditions'],
-            }
-            for environment, expected in topics.items():
-                page.locator(f'input[value="{environment}"]').check()
-                expect(page.locator('#topics-list li')).to_have_text(expected)
-                expect(page.locator('#prepare-trip')).to_be_disabled()
-                expect(page.locator('#trip-status')).to_contain_text('Nothing has been downloaded or saved')
+        def prepared():
+            navigate('prepared')
+            page.locator('#prepared-description').fill('Fictional test environment')
+            for environment in ('Desert', 'Snow', 'Mountains', 'Forest', 'Beach'):
+                page.locator(f'#prepared-form input[value="{environment}"]').check()
+                page.locator('#prepared-form button[type="submit"]').click()
+                expect(page.locator('#prepared-summary')).to_contain_text('Environment: ' + environment)
+                expect(page.locator('#prepared-items input[type="checkbox"]')).to_have_count(12)
+                expect(page.get_by_role('button', name='Personalize with local AI')).to_be_disabled()
+                expect(page.locator('#prepared-ai-note')).to_contain_text('Not connected')
             navigate('chat')
-            navigate('trip')
-            expect(page.locator('#destination')).to_have_value('Fictional test destination')
+            navigate('prepared')
+            expect(page.locator('#prepared-description')).to_have_value('Fictional test environment')
             expect(page.locator('input[value="Beach"]')).to_be_checked()
 
-        check('Trip all five environments, exact topics, navigation retention, unavailable preparation/no fake downloads', trip)
+        check('Prepared all five environments, baseline12, navigation retention, AI unavailable', prepared)
 
         def profile():
             navigate('profile')
@@ -473,8 +469,8 @@ def main():
                 expect(page.locator('#question')).to_have_value(button.get_attribute('data-question'))
                 expect(page.locator('#question')).to_be_focused()
             require(count('/api/ask') == before, 'Starter automatically sent a question')
-            page.locator('#trip-shortcut').click()
-            expect(page.locator('#screen-trip')).to_be_visible()
+            page.locator('#prepared-shortcut').click()
+            expect(page.locator('#screen-prepared')).to_be_visible()
             navigate('chat')
             page.once('dialog', lambda dialog: dialog.dismiss())
             page.locator('#clear-chat').click()
@@ -496,16 +492,16 @@ def main():
                 expect(page.locator('#emergency-dialog')).not_to_be_visible()
             page.locator('#sidebar-toggle').click()
             expect(page.locator('#sidebar-toggle')).to_have_attribute('aria-expanded', 'false')
-            navigate('trip')
+            navigate('prepared')
             page.locator('#sidebar-toggle').click()
             expect(page.locator('#sidebar-toggle')).to_have_attribute('aria-expanded', 'true')
 
-        check('Navigation, starter drafts/no auto-send, trip shortcut, new-chat cancel/clear, emergency close/Escape, sidebar', navigation_emergency_chat)
+        check('Navigation, starter drafts/no auto-send, prepared shortcut, new-chat cancel/clear, emergency close/Escape, sidebar', navigation_emergency_chat)
 
         def responsive():
             for width in (320, 390, 768, 1440):
                 page.set_viewport_size({'width': width, 'height': 1000 if width == 1440 else 844})
-                for screen in ('chat', 'trip', 'profile'):
+                for screen in ('chat', 'prepared', 'profile'):
                     navigate(screen)
                     sizes = page.evaluate('''() => ({width: innerWidth,
                         document: document.documentElement.scrollWidth, body: document.body.scrollWidth})''')

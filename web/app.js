@@ -13,7 +13,7 @@
   const profileFields = ['name', 'age', 'allergies', 'medications', 'conditions', 'contact'];
 
   function updateControls() {
-    $('send-button').disabled = sending || !canAsk || !question.value.trim();
+    $('send-button').disabled = sending || window.LifeLineVoice.active || !canAsk || !question.value.trim();
     $('retry-question').disabled = sending || !canAsk;
     $('clear-chat').disabled = sending;
     question.readOnly = sending;
@@ -41,11 +41,15 @@
     $('references-state').textContent = library;
     $('library-summary').textContent = `Medical Library: ${library}`;
     $('offline-label').textContent = data.offline_ready ? 'Complete offline system ready' : 'Complete offline system not ready';
-    const detail = typeof data.local.message === 'string' ? data.local.message : 'No local AI status message provided.';
+    const detail = data.local.configured && !data.local.ready
+      ? 'Local model files found. Your first question loads the model on CPU and may take a few minutes.'
+      : typeof data.local.message === 'string' ? data.local.message : 'No local AI status message provided.';
+    // A configured model loads lazily, so readiness must not block the first ask.
     setAIStatus(true, data.local.ready ? 'Local AI Active' : 'Local AI Not Ready', detail);
     $('connection-state').dataset.ready = String(data.local.ready);
     $('model-name').textContent = typeof data.local.model === 'string' ? data.local.model : 'Not connected';
     $('status-explanation').textContent = $('availability-detail').textContent;
+    window.LifeLineLibrary.updateStatus(data);
   }
 
   function unavailable() {
@@ -55,6 +59,7 @@
     for (const id of ['model-name', 'local-state', 'references-state']) $(id).textContent = 'Not verified';
     $('library-summary').textContent = 'Medical Library: Not verified';
     $('offline-label').textContent = 'Offline readiness unverified';
+    window.LifeLineLibrary.updateStatus(null);
   }
 
   async function checkStatus() {
@@ -86,7 +91,16 @@
     }
     const body = document.createElement('p');
     body.textContent = text;
-    article.append(label, body);
+    article.append(label);
+    if (kind === 'assistant') {
+      if (typeof data.heading === 'string' && data.heading.trim()) {
+        const heading = document.createElement('h2');
+        heading.textContent = data.heading;
+        article.append(heading);
+      }
+      window.LifeLineResponse.renderGuidance(article, data);
+    }
+    article.append(body);
     // Optional structured sections remain plain text, never HTML or markdown.
     if (Array.isArray(data.sections)) {
       for (const section of data.sections) {
@@ -109,6 +123,12 @@
       note.className = 'message-notice';
       note.textContent = data.notice || 'AI-generated information. Not a doctor or an emergency service.';
       article.append(note);
+      if (!Array.isArray(data.sources) || !data.sources.length) {
+        const limitation = document.createElement('p');
+        limitation.className = 'message-notice';
+        limitation.textContent = 'No verified medical references were returned with this answer.';
+        article.append(limitation);
+      }
     }
     const sources = Array.isArray(data.sources) ? data.sources : [];
     const list = document.createElement('ul');
@@ -151,14 +171,33 @@
   }
 
   async function send(text, retry = false) {
-    if (sending || !canAsk || !text) return;
+    if (sending || window.LifeLineVoice.active || !canAsk || !text) return;
     sending = true;
     lastQuestion = text;
     const revision = ++requestRevision;
+    const loading = $('ai-loading');
+    const progress = $('ai-progress');
+    const started = performance.now();
+    loading.dataset.complete = 'false';
+    $('ai-loading-title').textContent = 'LifeLine AI is preparing your answer...';
+    $('ai-elapsed').textContent = '0 seconds elapsed';
+    $('ai-progress-fill').style.width = '0%';
+    progress.setAttribute('aria-valuenow', '0');
+    progress.setAttribute('aria-valuetext', 'Time-based estimate, not model completion');
+    loading.hidden = false;
+    // Elapsed time is only a waiting estimate; reserve completion for a valid answer.
+    const progressTimer = setInterval(() => {
+      const seconds = Math.floor((performance.now() - started) / 1000);
+      const estimate = Math.min(95, 95 * (1 - Math.exp(-seconds / 45)));
+      $('ai-elapsed').textContent = `${seconds} ${seconds === 1 ? 'second' : 'seconds'} elapsed`;
+      $('ai-progress-fill').style.width = `${estimate}%`;
+      progress.setAttribute('aria-valuenow', String(Math.floor(estimate)));
+    }, 1000);
     $('request-error').hidden = true;
     if (!retry) addMessage('user', text);
-    $('request-status').textContent = 'Waiting for local AI. For immediate danger, contact emergency services now.';
+    $('request-status').textContent = 'Waiting for local AI on CPU. The first question also loads the model and may take a few minutes. For immediate danger, contact emergency services now.';
     updateControls();
+    if (!$('screen-chat').hidden) loading.scrollIntoView({ block: 'nearest', behavior: 'instant' });
     try {
       const data = await api.ask(text);
         if (typeof data.answer !== 'string' || !data.answer.trim() || data.mode !== 'local' ||
@@ -166,14 +205,21 @@
             (data.notice != null && typeof data.notice !== 'string')) throw new Error('The backend did not return a valid answer.');
       if (revision !== requestRevision) return;
       const reply = addMessage('assistant', data.answer, data);
+      clearInterval(progressTimer);
+      loading.dataset.complete = 'true';
+      $('ai-loading-title').textContent = 'Your answer is ready.';
+      $('ai-progress-fill').style.width = '100%';
+      progress.setAttribute('aria-valuenow', '100');
+      progress.setAttribute('aria-valuetext', 'Response received');
       question.value = '';
       $('request-status').textContent = 'Response received. Earlier questions are not sent with follow-up requests.';
       if (!$('screen-chat').hidden) reply.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+      await new Promise((resolve) => setTimeout(resolve, 450));
     } catch (error) {
       if (revision !== requestRevision) return;
       $('request-status').textContent = '';
       $('error-detail').textContent = error.name === 'AbortError'
-        ? 'The request timed out. Your question is still here. You can retry when the service is available.'
+        ? 'The local AI request timed out after 3 minutes. The model may still be loading or generating. Your question is still here; wait before retrying. For immediate danger, contact emergency services now.'
         : `${error.message || 'Could not get a response.'} Your question is still here. You can retry when the service is available.`;
       $('request-error').hidden = false;
       if (error.status === 503) {
@@ -181,7 +227,9 @@
         $('connection-state').dataset.ready = 'false';
       }
     } finally {
+      clearInterval(progressTimer);
       if (revision === requestRevision) {
+        loading.hidden = true;
         sending = false;
         updateControls();
         if (!$('screen-chat').hidden) question.focus({ preventScroll: true });
@@ -228,18 +276,19 @@
   });
 
   function showScreen() {
-    const name = ['chat', 'trip', 'profile'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'chat';
-    for (const screen of ['chat', 'trip', 'profile']) $(`screen-${screen}`).hidden = screen !== name;
+    const name = ['chat', 'library', 'prepared', 'profile'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'chat';
+    for (const screen of ['chat', 'library', 'prepared', 'profile']) $(`screen-${screen}`).hidden = screen !== name;
     document.querySelectorAll('[data-screen]').forEach((link) => {
       const active = link.dataset.screen === name;
       link.classList.toggle('active', active);
       if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
     });
-    $('page-label').textContent = name === 'chat' ? 'YOUR EVERYDAY SAFETY COMPANION' : name === 'trip' ? 'MAKE ROOM FOR PREPARATION' : 'YOUR OPTIONAL DEMO PROFILE';
-    document.title = `LifeLine | ${name === 'chat' ? 'Chat' : name === 'trip' ? 'Prepare Trip' : 'Medical Profile'}`;
+    $('page-label').hidden = name === 'chat';
+    $('page-label').textContent = name === 'chat' ? '' : name === 'prepared' ? 'MAKE ROOM FOR PREPARATION' : name === 'library' ? 'FIRST-AID LIBRARY' : 'YOUR OPTIONAL DEMO PROFILE';
+    document.title = `LifeLine | ${name === 'chat' ? 'Chat' : name === 'prepared' ? 'Get Prepared' : name === 'library' ? 'First-Aid Library' : 'Medical Profile'}`;
   }
   window.addEventListener('hashchange', () => { showScreen(); $('main').focus({ preventScroll: true }); });
-  $('trip-shortcut').addEventListener('click', () => { location.hash = 'trip'; });
+  $('prepared-shortcut').addEventListener('click', () => { location.hash = 'prepared'; });
   $('sidebar-toggle').addEventListener('click', () => {
     const collapsed = $('app-shell').classList.toggle('collapsed');
     $('sidebar-toggle').setAttribute('aria-expanded', String(!collapsed));
@@ -247,25 +296,6 @@
     document.querySelectorAll('[data-screen]').forEach((link) => {
       if (collapsed) link.setAttribute('aria-label', link.textContent.trim()); else link.removeAttribute('aria-label');
     });
-  });
-
-  const topics = {
-    Desert: ['Heat and sun exposure', 'Water planning', 'Navigation and communication'],
-    Snow: ['Cold exposure', 'Weather and visibility', 'Traction and equipment'],
-    Mountains: ['Altitude awareness', 'Trail and weather planning', 'Remote communication'],
-    Forest: ['Navigation', 'Bites and stings', 'Weather and shelter'],
-    Beach: ['Water safety', 'Sun exposure', 'Tides and local conditions']
-  };
-  $('trip-form').addEventListener('submit', (event) => event.preventDefault());
-  $('trip-form').addEventListener('change', () => {
-    const selected = document.querySelector('input[name="environment"]:checked')?.value;
-    $('suggested-topics').hidden = !selected;
-    $('topics-list').replaceChildren();
-    for (const topic of topics[selected] || []) {
-      const item = document.createElement('li');
-      item.textContent = topic;
-      $('topics-list').append(item);
-    }
   });
 
   function setProfileEditing(editing) {
@@ -297,10 +327,44 @@
     $(`${name}-close`).addEventListener('click', () => $(`${name}-dialog`).close());
   }
   $('refresh-status').addEventListener('click', checkStatus);
+  $('emergency-library').addEventListener('click', () => {
+    $('emergency-dialog').close();
+    location.hash = 'library';
+  });
+  window.addEventListener('lifeline:voice-state', updateControls);
 
-  const connectivity = window.LifeLineConnectivity.current();
-  document.body.dataset.connectivity = connectivity.state;
-  $('internet-label').textContent = connectivity.label;
+  const accountDialog = $('account-dialog');
+  let signingUp = false;
+  function setAccountMode(signUp) {
+    signingUp = signUp;
+    $('account-form').reset();
+    $('account-feedback').textContent = '';
+    $('account-title').textContent = signUp ? 'Sign Up' : 'Sign In';
+    $('account-name-field').hidden = !signUp;
+    $('account-submit').textContent = signUp ? 'Preview Sign Up' : 'Preview Sign In';
+    $('account-switch').textContent = signUp ? 'Try Sign In instead' : 'Try Sign Up instead';
+  }
+  for (const [id, signUp] of [['sign-in-open', false], ['sign-up-open', true]]) {
+    $(id).addEventListener('click', () => {
+      setAccountMode(signUp);
+      accountDialog.showModal();
+    });
+  }
+  $('account-switch').addEventListener('click', () => {
+    setAccountMode(!signingUp);
+    $('account-email').focus();
+  });
+  $('account-close').addEventListener('click', () => accountDialog.close());
+  accountDialog.addEventListener('close', () => {
+    $('account-form').reset();
+    $('account-feedback').textContent = '';
+  });
+  $('account-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    $('account-form').reset();
+    $('account-feedback').textContent = 'Demo preview complete. You are not signed in and no account was created. All entered details have been cleared. Continue using LifeLine without an account.';
+  });
+
   window.LifeLineStatus.subscribe(applyStatus, unavailable);
   showScreen();
   updateControls();

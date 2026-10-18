@@ -107,10 +107,13 @@ the same GGUF path in both terminals, use the documented flags, and inspect logs
 ## Verification And Fallback
 
 In browser Network tools, compare the displayed text with `/api/ask`'s actual
-`data.answer`. Expect `mode=local`, `simulated=false`, `sources=[]`, and the
-existing notice. `/api/status` names llama.cpp; reference readiness stays false.
+`data.answer`. Expect `mode=local` and `simulated=false`. Without RAG, sources
+remain empty and reference readiness stays false. For the grounded medical demo,
+install the pinned references and set `LIFELINE_RAG=1` as in
+[MEDICAL_RAG.md](../MEDICAL_RAG.md): sources then come only from validated stored
+records, and reference count is 10. This does not imply complete offline readiness.
 Repeat with Wi-Fi disconnected. Check the server terminal logs for the request.
-This does not verify medical correctness; no verified medical references exist.
+Neither runtime coherence nor installed source attribution verifies clinical correctness.
 
 Tests: `python -m unittest -v test_llama_adapter test_chat`. The adapter tests use
 a mock loopback HTTP server and explicitly marked nonmedical output; they do

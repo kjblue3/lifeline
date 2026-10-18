@@ -29,6 +29,22 @@ PROMPTS = (
      'Three sensible supplies, coherent English; not medical advice'),
 )
 
+SIMPLE_SYSTEM = 'Respond concisely in English. Follow the requested format. These are nonmedical test questions.'
+LONG_PROMPT = (
+    'Read the following ordinary hiking-planning notes. They are background text, '
+    'not medical information.\n\n'
+    + '\n\n'.join(
+        f'Planning note {i}: A group is considering a daytime walk on a marked trail. '
+        'They want to check the route map, weather forecast, trail access and return time. '
+        'They plan to carry drinking water, snacks, a rain jacket, a paper map and a compass. '
+        'The group will stay together, keep the outing within daylight hours, and tell '
+        'a responsible person the intended route. No one is injured or asking for treatment.'
+        for i in range(1, 7)
+    )
+    + '\n\nIn two short English sentences, summarize the nonmedical planning priorities. '
+    'Do not repeat the notes or provide medical treatment instructions.'
+)
+
 
 def request(port, method, path, timeout, payload=None):
     """Direct loopback TCP, bypassing proxy settings; never follows redirects."""
@@ -84,12 +100,15 @@ def assess(text):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8081)
-    parser.add_argument('--rounds', type=int, default=3, help='Five independent prompts per round')
+    parser.add_argument('--rounds', type=int, default=3, help='Repeat all prompts in the selected suite')
+    parser.add_argument('--suite', choices=('basic', 'runtime'), default='basic',
+                        help='runtime: short, long ordinary text, and long text with full LifeLine safety prompt')
     parser.add_argument('--max-tokens', type=int, default=160)
     parser.add_argument('--timeout', type=float, default=120)
     parser.add_argument('--cache', choices=('default', 'off', 'on'), default='default',
                         help='default omits cache controls, matching LifeLine; off/on pins slot 0')
-    parser.add_argument('--system', choices=('simple', 'lifeline'), default='lifeline')
+    parser.add_argument('--system', choices=('simple', 'lifeline'), default='lifeline',
+                        help='basic suite only; runtime deliberately tests both system prompts')
     parser.add_argument('--erase-between', action='store_true',
                         help='Requires --slot-save-path on b11680; use with --cache-ram 0')
     parser.add_argument('--label', required=True, help='Build/configuration identifier recorded verbatim')
@@ -99,7 +118,9 @@ def main(argv=None):
     if (not 1 <= args.port <= 65535 or not 1 <= args.rounds <= 100 or
             not 1 <= args.max_tokens <= 512 or not math.isfinite(args.timeout) or args.timeout <= 0):
         parser.error('Invalid port, round count, token limit, or timeout')
-    system = 'Respond concisely in English. Follow the requested format. These are nonmedical test questions.'
+    if args.suite == 'runtime' and args.system != 'lifeline':
+        parser.error('runtime suite requires the unchanged LifeLine safety prompt; omit --system')
+    system = SIMPLE_SYSTEM
     if args.system == 'lifeline':
         # Read only the literal constant: no application imports/dependencies or side effects.
         import ast
@@ -112,6 +133,16 @@ def main(argv=None):
                 break
         else:
             parser.error('SYSTEM_INSTRUCTION literal not found; do not substitute a weaker prompt')
+    cases = [(name, question, expected, system) for name, question, expected in PROMPTS]
+    if args.suite == 'runtime':
+        cases = [
+            ('short', 'In English, name three ordinary nonmedical supplies for a day hike.',
+             'Coherent English supplies; no repeated-token corruption', SIMPLE_SYSTEM),
+            ('long-ordinary', LONG_PROMPT,
+             'Coherent English summary of the long planning notes', SIMPLE_SYSTEM),
+            ('full-lifeline-safety', LONG_PROMPT,
+             'Coherent English with unchanged LifeLine safety instruction; no unsupported treatment', system),
+        ]
     if not args.output.parent.is_dir():
         parser.error('Output parent directory must already exist')
 
@@ -137,7 +168,7 @@ def main(argv=None):
                 print('Server not healthy; inspect the recorded response. No prompts sent.')
                 return 2
             for round_index in range(1, args.rounds + 1):
-                for name, question, expected in PROMPTS:
+                for name, question, expected, case_system in cases:
                     if args.erase_between:
                         erased = request(args.port, 'POST', '/slots/0?action=erase', args.timeout, {})
                         emit(dict(erased, event='erase'))
@@ -148,7 +179,7 @@ def main(argv=None):
                             print('Slot erase failed. Stopping without silently continuing.')
                             return 2
                     payload = {'model': 'lifeline-qwen', 'messages': [
-                        {'role': 'system', 'content': system}, {'role': 'user', 'content': question}],
+                        {'role': 'system', 'content': case_system}, {'role': 'user', 'content': question}],
                         'temperature': 0, 'max_tokens': args.max_tokens, 'stream': False}
                     if args.cache != 'default':
                         payload.update(cache_prompt=args.cache == 'on', id_slot=0, n_cache_reuse=0)
@@ -189,7 +220,7 @@ def main(argv=None):
             emit({'event': 'transport_error', 'error': str(exc), 'type': type(exc).__name__})
             print('Transport failed. Stop/restart server before another experiment; no retry was sent.')
             return 2
-    print(f'\nSaved {args.rounds * len(PROMPTS)} full responses to {args.output}.')
+    print(f'\nSaved {args.rounds * len(cases)} full responses to {args.output}.')
     print('Exit 0 means collection completed, NOT that quality passed. Review every raw answer.')
     return 0
 

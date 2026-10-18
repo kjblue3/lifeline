@@ -1,6 +1,7 @@
 """Test diagnostic tooling with synthetic responses, never model correctness."""
 
 from contextlib import redirect_stdout
+import ast
 import base64
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
@@ -92,6 +93,32 @@ class ProbeTests(unittest.TestCase):
                 self.assertIs(payload['cache_prompt'], False)
                 self.assertEqual(payload['id_slot'], 0)
                 self.assertEqual(payload['n_cache_reuse'], 0)
+
+    def test_runtime_regression_suite_preserves_full_safety_and_long_context(self):
+        code, events = self.run_probe('--suite', 'runtime', '--rounds', '2')
+        self.assertEqual(code, 0)
+        completions = [event for event in events if event['event'] == 'completion']
+        self.assertEqual([event['prompt_id'] for event in completions],
+                         ['short', 'long-ordinary', 'full-lifeline-safety'] * 2)
+        # Actual source instruction, not a paraphrase or weakened replacement.
+        tree = ast.parse((Path(probe.__file__).resolve().parents[1] / 'inference.py').read_text())
+        instruction = next(ast.literal_eval(node.value) for node in tree.body
+                           if isinstance(node, ast.Assign) and any(
+                               isinstance(target, ast.Name) and target.id == 'SYSTEM_INSTRUCTION'
+                               for target in node.targets))
+        for offset in (0, 3):
+            short, long, safety = [event['request'] for event in completions[offset:offset + 3]]
+            self.assertGreater(len(long['messages'][1]['content']), 2000)
+            self.assertLess(len(short['messages'][1]['content']), 150)
+            self.assertEqual(long['messages'][1], safety['messages'][1])
+            self.assertEqual(long['messages'][0]['content'], probe.SIMPLE_SYSTEM)
+            self.assertEqual(safety['messages'][0]['content'], instruction)
+            self.assertNotEqual(long['messages'][0], safety['messages'][0])
+            self.assertEqual(len(safety['messages']), 2)
+            self.assertEqual(safety['temperature'], 0)
+            self.assertEqual(safety['max_tokens'], 160)
+            self.assertIs(safety['stream'], False)
+            self.assertNotIn('cache_prompt', safety)
 
     def test_missing_usage_not_fabricated_and_human_judgment_separate(self):
         self.body.pop('usage')

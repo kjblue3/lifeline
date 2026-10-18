@@ -1,5 +1,14 @@
 # b11680 Correctness Investigation
 
+**Current status:** Kiran has validated the official **b11490 Windows ARM64 CPU
+build** with the identical Qwen Q4_K_M GGUF: short/long CLI prompts and server
+requests including the full LifeLine safety instruction were coherent. The
+b11680 CPU build failed long prompts. Prefer b11490 for this Dell; see
+[runtime validation and regression checklist](LLAMA_RUNTIME_VALIDATION.md).
+The hypotheses/commands below are historical b11680 investigation material,
+not a requirement to continue debugging b11680 before the demo. The precise
+upstream regression remains unidentified; website testing is in progress.
+
 No Dell experiment has been executed in CoShell. These are reproducible tests,
 not a confirmed fix. Keep corrupted output out of the medical demo. No output
 filtering can establish that an apparently fluent answer is medically safe.

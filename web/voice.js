@@ -15,6 +15,21 @@ window.LifeLineVoice = (() => {
     typeof adapter.transcribe === 'function' && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined';
   const busy = () => question.readOnly || question.disabled;
 
+  function insertTranscript() {
+    if (busy() || !transcript || phase !== 'idle') return false;
+    const next = [question.value, transcript].filter(Boolean).join('\n');
+    if (question.maxLength >= 0 && next.length > question.maxLength) {
+      update('The transcript and draft exceed the question length limit. Shorten your draft before inserting.');
+      return false;
+    }
+    question.value = next;
+    question.dispatchEvent(new Event('input', { bubbles: true }));
+    cancel();
+    dialog.close();
+    question.focus();
+    return true;
+  }
+
   function update(message) {
     $('voice-status').textContent = message;
     dialog.dataset.listening = String(phase === 'recording');
@@ -55,7 +70,7 @@ window.LifeLineVoice = (() => {
     phase = 'transcribing';
     recorder.stop();
     stopTracks();
-    update('Preparing a transcript locally. Review it before inserting.');
+    update('Transcribing locally. You can review and edit the text before sending.');
   }
 
   async function start() {
@@ -90,17 +105,18 @@ window.LifeLineVoice = (() => {
           const result = await localAdapter.transcribe(blob);
           if (current !== revision || !dialog.open) return;
           if (typeof result?.text !== 'string' || !result.text.trim()) throw new Error('Empty transcript');
-          // Never overwrite a draft or insert automatically, including during an AI request.
+          // Append to the current draft, never overwrite edits or submit a question.
           transcript = result.text.trim();
           phase = 'idle';
-          update(busy() ? 'Transcript ready. Wait for the current answer before inserting.' : 'Review the transcript, then choose Insert into chat.');
+          update('Transcript ready. You can edit it before sending.');
+          if (!insertTranscript() && busy()) update('Transcript ready. Wait for the current answer before inserting.');
         } catch {
           if (current === revision) { phase = 'idle'; update('Local transcription is unavailable. You can still type your question.'); }
         } finally { blob = null; }
       };
       capture.start();
       phase = 'recording';
-      update('Listening. Stop recording when you are finished.');
+       update('Listening... Stop recording when you are finished.');
       timer = setTimeout(stop, 60000);
     } catch (error) {
       if (current !== revision) return;
@@ -117,6 +133,7 @@ window.LifeLineVoice = (() => {
     cancel();
     $('voice-permission').textContent = 'Microphone access has not been requested. You can still type your question.';
     dialog.showModal();
+    if (available()) void start();
   });
   $('voice-close').addEventListener('click', () => { cancel(); dialog.close(); });
   dialog.addEventListener('cancel', cancel);
@@ -124,19 +141,7 @@ window.LifeLineVoice = (() => {
   $('voice-start').addEventListener('click', start);
   $('voice-stop').addEventListener('click', stop);
   $('voice-cancel').addEventListener('click', cancel);
-  $('voice-insert').addEventListener('click', () => {
-    if (busy() || !transcript || phase !== 'idle') return;
-    const next = [question.value, transcript].filter(Boolean).join('\n');
-    if (question.maxLength >= 0 && next.length > question.maxLength) {
-      update('The transcript and draft exceed the question length limit. Shorten your draft before inserting.');
-      return;
-    }
-    question.value = next;
-    question.dispatchEvent(new Event('input', { bubbles: true }));
-    cancel();
-    dialog.close();
-    question.focus();
-  });
+  $('voice-insert').addEventListener('click', insertTranscript);
   // Guard form submission independently of parent control updates.
   $('chat-form').addEventListener('submit', (event) => {
     if (phase !== 'idle') { event.preventDefault(); event.stopImmediatePropagation(); }

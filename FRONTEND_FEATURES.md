@@ -1,5 +1,32 @@
 # Voice, Guidance, And Library
 
+## Current Standalone Library
+
+The First-Aid Library now loads `web/official_first_aid.json` directly as a
+bundled static asset. This is an exact copy of the existing
+`medical_data/official_first_aid.json`: ten populated MedlinePlus summaries,
+not the other 90 catalog-only entries. No medical text is generated or rewritten.
+Source credits embedded in the summaries, original URLs, IDs and provenance
+are retained. Missing detailed first-aid sections are not invented.
+
+Open `http://localhost:8000/#library` for the running website. Search includes
+titles and the full summary text; categories and A-Z filters run locally.
+Backend reference readiness no longer controls this standalone collection.
+These are medical information summaries, not complete first-aid protocols or
+clinically reviewed LifeLine guidance. Source phone numbers may be US-specific.
+
+For installed-app offline refresh, open `/assets/index.html#library` once while
+the local server is available and let offline setup complete. The existing
+service worker caches the local JSON alongside the app shell. Its scope does
+not include `/`; use the installed entry for refreshing with the network fully
+disabled. No Python, model or API is needed to render the cached library.
+`python library_check.py` verifies all ten displayed summaries byte-for-byte
+against the served JSON, every topic page, search, A-Z, categories, responsive
+widths, blocked backend APIs, and true browser-offline refresh. Original-source
+links still need internet. Re-export/revalidate this copy if the medical source
+snapshot changes. The historical backend-dependent library details below have
+been superseded by this static collection.
+
 These changes extend the existing vanilla frontend. No FastAPI, SQLite, model,
 or ExecuTorch files were changed. The interface retains dark green/white styling,
 Chat, Get Prepared, Medical Profile, demo account forms, and Emergency Help.
@@ -7,11 +34,21 @@ Internet-based background switching is disabled; the UI stays neutral.
 
 ## Current Capabilities
 
+Get Prepared now places a single conversational trip-description input above
+the supply checklist. Environment cards and separate activity/duration fields
+have been removed. Until a local preparedness conversation adapter is connected,
+submissions are explicitly labeled session-only trip notes, not AI messages.
+They make no network requests, generate no follow-up questions, and do not
+personalize the checklist. Notes clear on reload; saved checklist IDs still
+restore. A future adapter must support conversation context and verified supply
+selection before AI follow-up questions can be enabled. The medical `/api/ask`
+endpoint is not repurposed for this unimplemented planning contract.
+
 | Feature | Implemented | Not Yet Connected |
 | --- | --- | --- |
 | Response display | Actual answer text, paragraphs and existing numbering; safe source links; source-gated structured warning/step components | Backend generation of verified structured steps |
 | First-Aid Library | Navigation, readiness states, local search/filter, cards, article/back view, source/warning/date display | Actual completed medical records and reference retrieval endpoint |
-| Voice | Microphone dialog, gated permission/record/stop controller, review and manual insertion, cancellation cleanup | Genuine local speech recognition and confirmed transcription endpoint |
+| Voice | Microphone dialog, gated permission/record/stop controller, automatic draft insertion for editing, cancellation cleanup | Genuine local speech recognition and confirmed transcription endpoint |
 
 There are no sample medical articles, diagnoses, or treatment steps. The bundled
 NPS packing checklist remains separate from the medical library. An indexed
@@ -126,15 +163,18 @@ must agree on a local audio endpoint, MIME/container support, size/duration limi
 permission/privacy policy, readiness, timeout/cancellation behavior, and `{text}`
 response. Whisper.cpp/Vosk availability is not claimed or installed here.
 
-With an explicitly configured adapter, the controller requests microphone access
-on Start, records at most 60 seconds using MediaRecorder, and exposes Stop and
+With an explicitly configured adapter, clicking the microphone requests access
+and starts recording. It records at most 60 seconds using MediaRecorder and exposes Stop and
 Cancel. Audio stays in memory until passed to that adapter, not browser storage.
 Closing, navigating, or page hiding releases tracks and discards pending results.
 Late permission grants after cancellation immediately release their tracks.
 Denied/unavailable devices give typing-friendly errors.
 
-A transcript requires manual **Insert into chat**, appends to the current draft,
-respects the length limit, and never auto-sends. The user can edit before Send.
+A completed transcript automatically appends to the current draft, closes the
+voice dialog, and focuses the editable input without sending. It preserves edits
+made while transcription runs. If the input is busy or the combined text exceeds
+the limit, the dialog retains the transcript and offers manual **Insert into chat**
+after the user resolves the issue. No text is silently truncated or overwritten.
 Sending is blocked while capture/transcription is active. No smartphone-local
 AI or speech capability is implied.
 
@@ -149,7 +189,7 @@ http://127.0.0.1:8000/. Disconnect Wi-Fi while keeping the local server running.
 4. After verified references and structured generation are connected, test actual source-backed steps, warnings, local search, and readable article content without Wi-Fi.
 
 The PWA entry is `/assets/index.html`, within the existing worker scope. New
-scripts are precached by `lifeline-shell-v6`, and missing PNG references were
+scripts are precached by `lifeline-shell-v7`, and missing PNG references were
 corrected to the existing SVG icon. Close other installed-app windows so an
 updated worker can activate before testing offline reopen. Cache installation
 must finish while the local server is reachable. API responses, recordings,
@@ -174,7 +214,7 @@ and genuine offline transcription remain hardware-integration tests.
 
 Verified: local search/filter/detail, invalid-record rejection, plain text and
 safe citations, source-gated steps, permission denial and close races, cancellation,
-manual insertion without sending, four-section navigation, profile/demo accounts,
+automatic draft insertion without sending, four-section navigation, profile/demo accounts,
 emergency shortcut, widths 320/390/768/1440, reduced motion, fresh PWA installation,
 offline reopen/reload and checklist controls, and no cached APIs.
 

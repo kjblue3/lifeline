@@ -10,6 +10,26 @@ window.LifeLinePreparednessLibrary = Object.freeze({
     updated: 'May 28, 2026',
     accessed: 'October 17, 2026'
   }),
+  // Concrete examples paraphrased from NPS; first-aid contents use Red Cross.
+  supplies: Object.freeze({
+    navigation: ['Paper map of the area', 'Compass', 'GPS device or downloaded map', 'Spare batteries for navigation devices'],
+    sun: ['Sunscreen', 'Sunglasses', 'Sun hat', 'Long-sleeved sun-protection clothing'],
+    layers: ['Extra jacket or warm layer', 'Rain shell', 'Warm hat', 'Gloves for expected conditions'],
+    light: ['Headlamp or flashlight', 'Spare batteries'],
+    'first-aid': ['Adhesive bandages in assorted sizes', 'Sterile gauze pads and absorbent dressings', 'Roller and triangular bandages', 'Medical adhesive cloth tape', 'Nonlatex gloves', 'Antiseptic wipes', 'Instant cold compress', 'Emergency first-aid instruction booklet'],
+    repair: ['Duct tape for equipment repairs', 'Repair supplies specific to your equipment'],
+    food: ['Granola or energy bars', 'Trail mix or nuts, if suitable for your allergies', 'Extra ready-to-eat food that needs no cooking'],
+    water: ['Drinking water in suitable containers', 'Water filter or other water-treatment supplies appropriate to the trip'],
+    shelter: ['Emergency blanket', 'Tarp, bivy sack or tent appropriate to your trip'],
+    'life-jacket': ['Properly fitting life jacket suitable for the water activity'],
+    insects: ['Insect repellent, used according to its product label'],
+    communication: ['Two-way satellite messenger appropriate to your communication plan']
+  }),
+  firstAidSource: Object.freeze({
+    title: 'Make a First Aid Kit',
+    publisher: 'American Red Cross',
+    url: 'https://www.redcross.org/get-help/how-to-prepare-for-emergencies/anatomy-of-a-first-aid-kit.html'
+  }),
   items: Object.freeze([
     { id: 'navigation', title: 'Navigation supplies', rationale: 'Pack a physical map and compass, plus a GPS device and spare batteries as appropriate. NPS includes navigation aids for finding your way.' },
     { id: 'sun', title: 'Sun protection', rationale: 'Consider sunglasses, sunscreen, a hat and long sleeves. NPS lists these as protection from sun exposure.' },

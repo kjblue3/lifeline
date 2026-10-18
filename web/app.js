@@ -10,7 +10,7 @@
   let requestRevision = 0;
   let lastQuestion = '';
   let profile = null;
-  const profileFields = ['name', 'age', 'allergies', 'medications', 'conditions', 'contact'];
+  const profileFields = ['name', 'age', 'allergies', 'medications', 'conditions', 'diseases'];
 
   function updateControls() {
     $('send-button').disabled = sending || window.LifeLineVoice.active || !canAsk || !question.value.trim();
@@ -49,7 +49,6 @@
     $('connection-state').dataset.ready = String(data.local.ready);
     $('model-name').textContent = typeof data.local.model === 'string' ? data.local.model : 'Not connected';
     $('status-explanation').textContent = $('availability-detail').textContent;
-    window.LifeLineLibrary.updateStatus(data);
   }
 
   function unavailable() {
@@ -59,7 +58,6 @@
     for (const id of ['model-name', 'local-state', 'references-state']) $(id).textContent = 'Not verified';
     $('library-summary').textContent = 'Medical Library: Not verified';
     $('offline-label').textContent = 'Offline readiness unverified';
-    window.LifeLineLibrary.updateStatus(null);
   }
 
   async function checkStatus() {
@@ -264,6 +262,7 @@
     if (sending) return;
     if (($('messages').childElementCount || question.value.trim()) && !window.confirm('Start a new chat? This clears the visible conversation and your draft.')) return;
     $('messages').replaceChildren();
+    window.dispatchEvent(new Event('lifeline:new-chat'));
     $('conversation').hidden = true;
     $('welcome').hidden = false;
     $('starters').hidden = false;
@@ -283,8 +282,8 @@
       link.classList.toggle('active', active);
       if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
     });
-    $('page-label').hidden = name === 'chat';
-    $('page-label').textContent = name === 'chat' ? '' : name === 'prepared' ? 'MAKE ROOM FOR PREPARATION' : name === 'library' ? 'FIRST-AID LIBRARY' : 'YOUR OPTIONAL DEMO PROFILE';
+    $('page-label').hidden = name === 'chat' || name === 'prepared';
+    $('page-label').textContent = name === 'chat' || name === 'prepared' ? '' : name === 'library' ? 'FIRST-AID LIBRARY' : 'YOUR OPTIONAL DEMO PROFILE';
     document.title = `LifeLine | ${name === 'chat' ? 'Chat' : name === 'prepared' ? 'Get Prepared' : name === 'library' ? 'First-Aid Library' : 'Medical Profile'}`;
   }
   window.addEventListener('hashchange', () => { showScreen(); $('main').focus({ preventScroll: true }); });

@@ -27,7 +27,10 @@
   }
 
   function updateCount() {
-    $('prepared-count').textContent = `${checked.size} of ${library.items.length} packed`;
+    const essentials = library.items.filter((item) => !item.activitySpecific);
+    const extras = library.items.filter((item) => item.activitySpecific);
+    $('prepared-count').textContent = `${essentials.filter((item) => checked.has(item.id)).length} of ${essentials.length} essentials packed`;
+    $('prepared-extra-count').textContent = `${extras.filter((item) => checked.has(item.id)).length} of ${extras.length} optional extras packed`;
   }
 
   for (const item of library.items) {
@@ -39,28 +42,40 @@
     input.checked = checked.has(item.id);
     input.setAttribute('aria-describedby', `prepared-reason-${item.id}`);
     const title = document.createElement('span');
-    title.textContent = item.title + (item.activitySpecific ? ' (activity-specific)' : '');
+    title.textContent = item.title;
     label.append(input, title);
     const rationale = document.createElement('p');
     rationale.id = `prepared-reason-${item.id}`;
     rationale.textContent = item.rationale;
-    const source = document.createElement('button');
-    source.type = 'button';
-    source.className = 'text-button';
-    source.textContent = 'Source: NPS Ten Essentials';
-    source.setAttribute('aria-label', `Source for ${item.title}: NPS Ten Essentials`);
-    // Avoid changing the screen hash when opening local source notes.
-    source.addEventListener('click', () => {
-      $('prepared-source').scrollIntoView({ block: 'start' });
-      $('prepared-source').focus({ preventScroll: true });
-    });
     input.addEventListener('change', () => {
       if (input.checked) checked.add(item.id); else checked.delete(item.id);
       updateCount();
       storageStatus.textContent = 'Checkmarks changed in memory. Choose Save progress to update saved progress.';
     });
-    row.append(label, rationale, source);
-    $('prepared-items').append(row);
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = 'What to pack';
+    const supplies = document.createElement('ul');
+    supplies.className = 'prepared-supplies';
+    for (const supply of library.supplies[item.id] || []) {
+      const entry = document.createElement('li');
+      entry.textContent = supply;
+      supplies.append(entry);
+    }
+    details.append(summary, supplies, rationale);
+    if (item.id === 'first-aid') {
+      const note = document.createElement('p');
+      note.textContent = 'Basic supply examples, not a complete kit or treatment instructions. Check expiry dates. Suturing equipment and medication recommendations are not included.';
+      const link = document.createElement('a');
+      link.textContent = 'Source: American Red Cross';
+      link.href = library.firstAidSource.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.referrerPolicy = 'no-referrer';
+      details.append(note, link);
+    }
+    row.append(label, details);
+    $(item.activitySpecific ? 'prepared-extra-items' : 'prepared-items').append(row);
   }
   updateCount();
 
@@ -73,17 +88,33 @@
   sourceLink.target = '_blank';
   sourceLink.rel = 'noopener noreferrer';
   sourceLink.referrerPolicy = 'no-referrer';
-  sourceLink.textContent = 'Read the original NPS article (requires internet)';
+  sourceLink.textContent = 'Source: National Park Service';
   $('prepared-source-link').append(sourceLink);
 
   $('prepared-form').addEventListener('submit', (event) => {
     event.preventDefault();
-    const days = Number($('prepared-days').value);
-    if (!Number.isInteger(days) || days < 1 || days > 365) return;
-    const environment = document.querySelector('#prepared-form input[name="environment"]:checked')?.value || 'Not selected';
-    const description = $('prepared-description').value.trim();
-    const activity = $('prepared-activity').value.trim() || 'Not specified';
-    $('prepared-summary').textContent = `Environment: ${environment}${description ? ` (${description})` : ''}. Activity: ${activity}. Duration: ${days} ${days === 1 ? 'day' : 'days'}. Context only; the complete baseline checklist is unchanged. Choices are not saved.`;
+    const message = $('prepared-message').value.trim();
+    if (!message) { $('prepared-message').focus(); return; }
+    const article = document.createElement('article');
+    article.className = 'message user';
+    const label = document.createElement('div');
+    label.className = 'message-label';
+    label.textContent = 'YOUR TRIP NOTE';
+    const text = document.createElement('p');
+    text.textContent = message;
+    article.append(label, text);
+    $('prepared-messages').append(article);
+    $('prepared-message').value = '';
+    $('prepared-ai-note').textContent = 'Trip details kept for this session. AI checklist personalization is not connected yet; these details have not changed your supplies.';
+    $('prepared-summary').textContent = 'General outdoor essentials. Trip-specific AI recommendations are not available yet.';
+    article.scrollIntoView({ block: 'nearest' });
+    $('prepared-message').focus({ preventScroll: true });
+  });
+  $('prepared-message').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      $('prepared-form').requestSubmit();
+    }
   });
 
   $('prepared-save').addEventListener('click', () => {

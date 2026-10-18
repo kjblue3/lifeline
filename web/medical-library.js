@@ -3,10 +3,16 @@
 window.LifeLineLibrary = (() => {
   const $ = (id) => document.getElementById(id);
   let records = [];
+  let dataset = {};
   let category = '';
-  let status = null;
+  let letter = '';
   let lastCard = null;
-  const text = (value) => typeof value === 'string' && value.trim().length > 0;
+  const categories = {
+    Injuries: ['Bleeding', 'Burns', 'Sprains and Strains', 'Wounds and Injuries'],
+    Outdoor: ['Heat Illness', 'Hypothermia', 'Frostbite'],
+    Illnesses: ['Dehydration'],
+    'Medical Emergencies': ['Poisoning', 'Choking']
+  };
 
   function node(tag, value, className) {
     const element = document.createElement(tag);
@@ -15,102 +21,110 @@ window.LifeLineLibrary = (() => {
     return element;
   }
 
-  function renderStatus() {
-    const refs = status?.references;
-    $('library-status').textContent = refs?.installed === false
-      ? 'First-aid library is not installed yet'
-      : refs?.installed === true && Number.isInteger(refs.count) && refs.count >= 0
-        ? `${refs.count} indexed topics reported. ${records.length ? 'Completed articles are supplied separately below.' : 'Library browsing is not connected yet.'} Indexed topics are not completed articles.`
-        : 'First-aid library status is unknown.';
-  }
-
-  function metadata(parent, record) {
-    parent.append(node('p', `Source: ${record.source.title} | ${record.source.organisation}`, 'muted'));
-    const link = node('a', 'Open original source (requires a connection)');
-    link.href = record.source.url;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.referrerPolicy = 'no-referrer';
-    parent.append(link);
-    for (const key of ['published', 'updated', 'reviewed']) {
-      if (record[key]) parent.append(node('p', `${key[0].toUpperCase() + key.slice(1)}: ${record[key]}`, 'muted'));
-    }
-    for (const warning of record.warnings) parent.append(node('p', warning, 'feature-notice'));
-  }
-
   function render() {
     const query = $('library-search').value.trim().toLowerCase();
     const matches = records.filter((record) => (!category || record.category === category) &&
-      [record.title, record.content, record.category, record.source.title, record.source.organisation].join(' ').toLowerCase().includes(query));
+      (!letter || record.title.toUpperCase().startsWith(letter)) &&
+      [record.title, record.summary, record.category].join(' ').toLowerCase().includes(query));
     $('library-cards').replaceChildren();
+    $('library-results').textContent = `${matches.length} of ${records.length} summaries`;
     $('library-empty').hidden = matches.length > 0;
-    $('library-empty').textContent = records.length ? 'No matching medical information found' : 'No completed first-aid articles are available on this device.';
+    $('library-empty').textContent = 'No matching medical information found.';
     for (const record of matches) {
       const card = node('article', '', 'content-card library-card');
-      card.append(node('h2', record.title));
-      if (record.category) card.append(node('p', record.category, 'muted'));
-      metadata(card, record);
-      const open = node('button', 'Read article', 'primary-button');
+      const heading = node('h2', '');
+      const open = node('button', record.title, 'library-title-button');
       open.type = 'button';
-      open.setAttribute('aria-label', `Read article: ${record.title}`);
       open.addEventListener('click', () => {
         lastCard = open;
         const article = $('library-article');
-        article.replaceChildren(node('h2', record.title), node('p', record.content, 'library-body'));
-        metadata(article, record);
-        article.append(node('p', 'For immediate danger, contact emergency services. This library does not replace professional medical care.', 'feature-notice'));
+        article.replaceChildren(node('h2', record.title),
+          node('p', 'Official medical information summary, not a complete first-aid protocol.', 'muted'),
+          node('p', record.summary, 'library-body'),
+          node('p', 'Source: MedlinePlus / U.S. National Library of Medicine', 'muted'));
+        const link = node('a', 'Open original MedlinePlus source (requires a connection)');
+        link.href = record.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.referrerPolicy = 'no-referrer';
+        article.append(link);
+        const provenance = node('details', '', 'library-provenance');
+        provenance.append(node('summary', 'Source and import provenance'));
+        for (const [label, value] of [
+          ['MedlinePlus topic ID', record.medlineplus_id],
+          ['Source topic creation date (not a clinical review date)', record.date_created],
+          ['Source feed date', dataset.feed_date],
+          ['Import timestamp', dataset.imported_at],
+          ['Snapshot SHA-256', dataset.snapshot_sha256]
+        ]) {
+          if (value) provenance.append(node('p', `${label}: ${value}`, 'muted'));
+        }
+        provenance.append(node('p', 'Source-extracted summary. Feed and import dates do not indicate clinical review. Contributor credits in the source summary are retained.', 'muted'));
+        article.append(provenance);
         $('library-browse').hidden = true;
         $('library-detail').hidden = false;
         article.focus();
       });
-      card.append(open);
+      heading.append(open);
+      card.append(heading, node('p', record.category, 'muted'));
       $('library-cards').append(card);
     }
   }
 
-  // Only completed, verified, locally readable articles cross this integration boundary.
-  // Schema: title/content/category, source:{title,organisation,url}, warnings:string[],
-  // optional published/updated/reviewed strings; all three availability flags must be true.
-  function setRecords(input) {
-    records = [];
-    for (const value of Array.isArray(input) ? input : []) {
-      if (value?.completed !== true || value.verified !== true || value.locally_available !== true ||
-          !text(value.title) || !text(value.content) || !text(value.source?.title) ||
-          !text(value.source?.organisation) || !text(value.source?.url)) continue;
-      let url;
-      try { url = new URL(value.source.url); } catch { continue; }
-      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) continue;
-      const record = {
-        title: value.title.trim(), content: value.content.trim(), category: text(value.category) ? value.category.trim() : '',
-        source: { title: value.source.title.trim(), organisation: value.source.organisation.trim(), url: url.href },
-        warnings: Array.isArray(value.warnings) ? value.warnings.filter(text) : []
-      };
-      for (const key of ['published', 'updated', 'reviewed']) if (text(value[key])) record[key] = value[key].trim();
-      records.push(record);
+  function filters(id, names, select) {
+    $(id).replaceChildren();
+    for (const name of ['', ...names]) {
+      const button = node('button', name || 'All', 'library-category');
+      button.type = 'button';
+      button.setAttribute('aria-pressed', String(!name));
+      button.addEventListener('click', () => {
+        select(name);
+        for (const sibling of $(id).children) sibling.setAttribute('aria-pressed', String(sibling === button));
+        render();
+      });
+      $(id).append(button);
     }
-    category = '';
-    $('library-search').value = '';
-    $('library-search').disabled = !records.length;
+  }
+
+  async function reload() {
+    $('library-status').textContent = 'Loading local medical information summaries...';
+    $('library-search').disabled = true;
+    $('library-categories').replaceChildren();
+    $('library-alphabet').replaceChildren();
+    $('library-cards').replaceChildren();
+    $('library-results').textContent = '';
+    $('library-empty').hidden = true;
     $('library-browse').hidden = false;
     $('library-detail').hidden = true;
-    $('library-article').replaceChildren();
-    $('library-categories').replaceChildren();
-    if (records.length) {
-      for (const name of ['', ...new Set(records.map((record) => record.category).filter(Boolean))]) {
-        const button = node('button', name || 'All articles', 'library-category');
-        button.type = 'button';
-        button.setAttribute('aria-pressed', String(name === category));
-        button.addEventListener('click', () => {
-          category = name;
-          for (const sibling of $('library-categories').children) sibling.setAttribute('aria-pressed', String(sibling === button));
-          render();
-        });
-        $('library-categories').append(button);
-      }
+    try {
+      const response = await fetch('/assets/official_first_aid.json', { mode: 'same-origin', credentials: 'same-origin', redirect: 'error' });
+      if (!response.ok) throw new Error('Unable to load bundled summaries');
+      const data = await response.json();
+      if (!Array.isArray(data.topics) || !data.topics.length || data.topics.some((record) => {
+        if (!record || typeof record.title !== 'string' || !record.title.trim() ||
+            typeof record.summary !== 'string' || !record.summary.trim() || record.content_status !== 'official_summary') return true;
+        try {
+          const url = new URL(record.url);
+          return url.protocol !== 'https:' || url.hostname !== 'medlineplus.gov' || !!url.username || !!url.password;
+        } catch { return true; }
+      })) throw new Error('Invalid bundled summary JSON');
+      dataset = data;
+      records = data.topics.map((record) => ({ ...record,
+        category: Object.keys(categories).find((name) => categories[name].includes(record.title)) || ''
+      })).sort((a, b) => a.title.localeCompare(b.title, 'en'));
+      category = '';
+      letter = '';
+      filters('library-categories', Object.keys(categories).filter((name) => records.some((record) => record.category === name)), (name) => { category = name; });
+      filters('library-alphabet', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), (name) => { letter = name; });
+      $('library-search').disabled = false;
+      $('library-status').textContent = `${records.length} medical information summaries loaded locally.`;
+      render();
+    } catch {
+      records = [];
+      $('library-status').textContent = 'Library loading failed: the bundled summary JSON is unavailable or invalid. Reload the page to try again.';
+      $('library-empty').hidden = false;
+      $('library-empty').textContent = 'Medical information summaries could not be loaded.';
     }
-    renderStatus();
-    render();
-    return records.length;
   }
 
   $('library-search').addEventListener('input', render);
@@ -120,6 +134,6 @@ window.LifeLineLibrary = (() => {
     if (lastCard?.isConnected) lastCard.focus();
     else $('library-search').focus();
   });
-  setRecords([]);
-  return Object.freeze({ setRecords, updateStatus(data) { status = data; renderStatus(); } });
+  reload();
+  return Object.freeze({ reload });
 })();

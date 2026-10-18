@@ -14,6 +14,7 @@
   <script src="/assets/medical-library.js" defer></script>
   <script src="/assets/voice.js" defer></script>
   <script src="/assets/response.js" defer></script>
+  <script src="/assets/attachment.js" defer></script>
   <script src="/assets/app.js" defer></script>
   <script src="/assets/pwa.js" defer></script>
 </head>
@@ -58,6 +59,10 @@
               </div>
               <p class="request-status" id="request-status" role="status"></p>
               <div class="error-box" id="request-error" role="alert" hidden><p id="error-detail"></p><button class="text-button" id="retry-question" type="button">Retry question</button></div>
+              <div class="attachment-preview" id="attachment-preview" hidden><span id="attachment-name"></span><button id="attachment-remove" class="text-button" type="button">Remove file</button><p>Local preview only. This file is not sent to or read by the AI. Sending submits only your typed question.</p></div>
+              <p id="attachment-status" class="muted" role="status"></p>
+              <input id="chat-file" type="file" hidden>
+              <button id="attachment-open" class="text-button" type="button" aria-describedby="attachment-status" aria-label="Attach a file (local preview only)">Attach file</button>
               <form id="chat-form"><div class="composer"><label class="sr-only" for="question">Your question</label><textarea id="question" name="question" rows="2" maxlength="2000" placeholder="Describe what's happening..." aria-describedby="composer-help availability-detail"></textarea><button class="voice-button" id="voice-open" type="button" aria-label="Open voice input" aria-haspopup="dialog"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg></button><button class="send-button" id="send-button" type="submit" aria-label="Send question" disabled><span aria-hidden="true">&#8593;</span></button></div></form>
               <p id="availability-detail" class="availability-detail" role="status">Checking the service before you send.</p>
               <p id="library-summary" class="availability-detail" hidden></p>
@@ -67,56 +72,58 @@
           <p class="safety-note"><strong>In immediate danger? Contact emergency services, not this chat.</strong> AI can make mistakes and is not a doctor.</p>
         </section>
         <section id="screen-library" class="screen" aria-labelledby="library-title" hidden>
-          <div class="section-heading"><h1 id="library-title">Find helpful first-aid information even without internet</h1></div>
-          <p id="library-status" role="status">First-aid library status is unknown.</p>
+          <div class="section-heading"><h1 id="library-title">First-Aid Library</h1><p>Medical information summaries available offline.</p></div>
+          <p class="feature-notice">In immediate danger, contact emergency services now. Do not wait for this library or AI. These summaries are not complete first-aid protocols and do not replace professional medical care. Phone numbers in the source summaries, including 1-800-222-1222 for poison control, are for the United States; outside the US, use local emergency and poison-control services. Calling requires an available phone connection.</p>
+          <p id="library-status" role="status">Loading local medical information summaries...</p>
           <div id="library-browse">
-            <label for="library-search">Search the local library</label><input id="library-search" type="search" placeholder="Search first-aid information" disabled aria-describedby="library-empty">
+            <label for="library-search">Search the local library</label><input id="library-search" type="search" placeholder="Search titles or summary keywords" disabled aria-describedby="library-results">
             <div id="library-categories" class="library-categories" role="group" aria-label="Filter by category"></div>
-            <p id="library-empty" role="status">No completed first-aid articles are available on this device.</p>
+            <div id="library-alphabet" class="library-categories" role="group" aria-label="Filter by title initial"></div>
+            <p id="library-results" role="status"></p>
+            <p id="library-empty" role="status" hidden>No matching medical information found.</p>
             <div id="library-cards" class="library-cards"></div>
           </div>
           <div id="library-detail" hidden><button id="library-back" class="text-button" type="button">Back to library</button><article id="library-article" class="content-card" tabindex="-1"></article></div>
         </section>
         <section id="screen-prepared" class="screen" aria-labelledby="prepared-title" hidden>
-          <div class="section-heading"><span class="eyebrow">PACK WITH A REFERENCE, NOT A GUESS</span><h1 id="prepared-title">Get Prepared</h1><p>A practical supply checklist based on the National Park Service's Ten Essentials. No AI required.</p></div>
-          <div class="feature-notice"><strong>Bundled preparedness library</strong><p>This checklist and source notes are included with this web app, separate from the backend Medical Library and its readiness status. No internet or AI requests are needed for this feature. After offline app setup finishes, this interface and checklist can reopen without the server. AI and emergency calling are not provided by the offline cache.</p></div>
-          <div class="content-card prepared-checklist">
-            <div class="prepared-heading"><h2>Your supply checklist</h2><span id="prepared-count" role="status">0 of 12 packed</span></div>
-            <p id="prepared-summary" role="status">Baseline checklist. No planning choices applied.</p>
-            <p>Quantities not calculated; plan for your group, duration and local conditions.</p>
-            <p class="muted">All categories remain visible. Activity-specific supplies are marked for consideration, not automatically selected or excluded. Checking a box records packing progress, not safety or readiness.</p>
-            <ul id="prepared-items" class="prepared-items" aria-label="Supply categories"></ul>
-            <div class="form-actions"><button id="prepared-save" class="primary-button" type="button">Save progress</button><button id="prepared-clear" class="text-button" type="button">Clear saved progress</button></div>
-            <p class="muted">Privacy: Save progress stores only checked item IDs and the library version on this browser. Planning choices and free text are not saved or sent anywhere. Saved checkmarks restore automatically on reload; this may be a shared device.</p>
-            <p id="prepared-storage-status" role="status">Progress is not saved until you choose Save progress.</p>
-          </div>
+          <div class="section-heading"><h1 id="prepared-title">Get Prepared</h1></div>
           <div class="content-card prepared-planning">
-            <h2>Your planning context</h2><p class="muted">Optional context only, not personalized advice. Do not enter personal, location-identifying or health information. Choices stay in this page's memory only.</p>
-            <form id="prepared-form" autocomplete="off"><fieldset><legend>Choose an environment <span class="muted">(optional)</span></legend><div class="environments">
-              <label class="environment"><input type="radio" name="environment" value="Desert"><span class="environment-icon" aria-hidden="true">&#9728;</span><strong>Desert</strong><span>Hot days, dry terrain</span></label>
-              <label class="environment"><input type="radio" name="environment" value="Snow"><span class="environment-icon" aria-hidden="true">&#10052;</span><strong>Snow</strong><span>Cold, ice and exposure</span></label>
-              <label class="environment"><input type="radio" name="environment" value="Mountains"><span class="environment-icon" aria-hidden="true">&#9651;</span><strong>Mountains</strong><span>Altitude and remote trails</span></label>
-              <label class="environment"><input type="radio" name="environment" value="Forest"><span class="environment-icon" aria-hidden="true">&#9827;</span><strong>Forest</strong><span>Woodland and wildlife</span></label>
-              <label class="environment"><input type="radio" name="environment" value="Beach"><span class="environment-icon" aria-hidden="true">&#8776;</span><strong>Beach</strong><span>Sun, sand and water</span></label>
-            </div></fieldset>
-              <div class="prepared-fields"><div><label for="prepared-description">Custom environment description <span class="muted">(optional)</span></label><input id="prepared-description" maxlength="200" placeholder="e.g. Open terrain with little shade"></div><div><label for="prepared-activity">Planned activity <span class="muted">(optional)</span></label><input id="prepared-activity" maxlength="120" placeholder="e.g. Walking marked trails"></div><div><label for="prepared-days">Duration in days</label><input id="prepared-days" type="number" min="1" max="365" step="1" value="1" required></div></div>
-              <div class="form-actions"><button class="primary-button" type="submit">Show my checklist</button><button type="button" disabled aria-describedby="prepared-ai-note">Personalize with local AI</button></div>
-              <p id="prepared-ai-note" class="muted">Not connected. Future local ExecuTorch personalization has no configured endpoint. No AI answer is generated; the source-backed checklist above is usable now.</p>
+            <h2>Tell us about your trip</h2>
+            <p class="muted">Describe where you're going, what you'll do, and how long you'll be away. Use fictional details for testing.</p>
+            <div id="prepared-messages" role="log" aria-label="Trip planning conversation" aria-live="polite"></div>
+            <form id="prepared-form" autocomplete="off">
+              <div class="composer"><label class="sr-only" for="prepared-message">Describe your trip</label><textarea id="prepared-message" rows="3" maxlength="2000" placeholder="I'm hiking in a desert for three days..." aria-describedby="prepared-ai-note"></textarea><button id="prepared-send" class="send-button" type="submit" aria-label="Send trip description"><span aria-hidden="true">&#8593;</span></button></div>
+              <p id="prepared-ai-note" class="sr-only" role="status">Trip notes only. AI personalization is not connected.</p>
             </form>
           </div>
-          <div class="content-card prepared-source" id="prepared-source"><h2>Source &amp; limits</h2><p id="prepared-source-detail"></p><p id="prepared-source-url"></p><p id="prepared-source-link"></p><p>The checklist and per-item paraphrases are readable here without internet. This is a small NPS-based supply library, not clinical verification or a complete list for every activity. Risky tools and fire supplies are omitted.</p><p><strong>Plan with a responsible adult or qualified local adviser.</strong> Check local weather, access rules and activity-specific requirements. This checklist cannot guarantee preparedness or safety. The first aid category is a supply reminder, not first aid or medical instructions.</p></div>
+          <div class="content-card prepared-checklist">
+            <div class="prepared-heading"><h2>Outdoor essentials</h2><span id="prepared-count" role="status">0 of 9 essentials packed</span></div>
+            <p id="prepared-summary" role="status">A general starting list for outdoor and remote trips.</p>
+            <p class="muted">Plan quantities for your group and conditions. A packed checklist does not guarantee safety.</p>
+            <ul id="prepared-items" class="prepared-items" aria-label="Supply categories"></ul>
+            <details id="prepared-extras"><summary>Activity-specific extras</summary><p class="muted">Consider these for your activity. They are not personalized AI recommendations.</p><ul id="prepared-extra-items" class="prepared-items" aria-label="Activity-specific supplies"></ul><p id="prepared-extra-count" class="muted" role="status"></p></details>
+            <div class="form-actions"><button id="prepared-save" class="primary-button" type="button">Save progress</button><button id="prepared-clear" class="text-button" type="button">Clear saved progress</button></div>
+            <p id="prepared-storage-status" role="status">Progress is not saved until you choose Save progress.</p>
+            <p id="prepared-source-link"></p>
+            <details class="prepared-about" id="prepared-source"><summary>About &amp; Safety</summary>
+              <p id="prepared-source-detail"></p><p id="prepared-source-url"></p>
+              <p>Supply descriptions are paraphrased from the National Park Service's Ten Essentials. The checklist and source notes are bundled locally; the original source link requires internet. This is not a complete list for every activity. Activity-specific items need your judgment. Risky tools and fire supplies are omitted.</p>
+              <p><strong>Plan with a responsible adult or qualified local adviser.</strong> Check local weather, access rules and activity-specific requirements. The first aid category is a supply reminder, not first aid or medical instructions.</p>
+              <p>Save progress stores only checked item IDs and the library version in this browser, including on shared devices. Trip notes and profile information are not included. Saved checkmarks restore on reload.</p>
+            </details>
+          </div>
         </section>
         <section id="screen-profile" class="screen" aria-labelledby="profile-title" hidden>
           <div class="section-heading"><span class="eyebrow">A PLACE FOR THE ESSENTIALS</span><h1 id="profile-title">Medical Profile <span class="demo-badge">FICTIONAL DEMO</span></h1><p>Try a profile with made-up details. Entirely optional.</p></div>
-          <div class="content-card"><div class="feature-notice"><strong>Only in this page's memory</strong><p>Do not enter real personal or health information. Nothing here is uploaded, stored on your device, or used in AI answers. Reloading or closing this page clears the profile. This is not a medical record.</p></div>
+          <div class="content-card">
             <form id="profile-form" autocomplete="off"><div class="profile-grid">
               <div><label for="profile-name">Name</label><input id="profile-name" name="name" maxlength="80" placeholder="e.g. Alex Example"></div>
               <div><label for="profile-age">Age</label><input id="profile-age" name="age" type="number" min="0" max="130" placeholder="e.g. 32"></div>
               <div><label for="profile-allergies">Allergies</label><textarea id="profile-allergies" name="allergies" rows="2" maxlength="500" placeholder="Fictional allergies"></textarea></div>
               <div><label for="profile-medications">Medications</label><textarea id="profile-medications" name="medications" rows="2" maxlength="500" placeholder="Fictional medications"></textarea></div>
               <div><label for="profile-conditions">Conditions</label><textarea id="profile-conditions" name="conditions" rows="2" maxlength="500" placeholder="Fictional conditions"></textarea></div>
-              <div><label for="profile-contact">Emergency Contact</label><textarea id="profile-contact" name="contact" rows="2" maxlength="200" placeholder="A made-up name and number"></textarea></div>
-            </div><div class="form-actions"><button class="primary-button" id="profile-save" type="submit">Keep demo profile</button><button class="text-button" id="profile-edit" type="button" hidden>Edit profile</button><button class="text-button" id="profile-clear" type="button">Remove profile</button></div><p id="profile-summary" class="muted" role="status">No profile kept. Use fictional details only.</p></form>
+              <div><label for="profile-diseases">Diseases</label><textarea id="profile-diseases" name="diseases" rows="2" maxlength="500" placeholder="Fictional diseases"></textarea></div>
+            </div><div class="form-actions"><button class="primary-button" id="profile-save" type="submit">Keep demo profile</button><button class="text-button" id="profile-edit" type="button" hidden>Edit profile</button><button class="text-button" id="profile-clear" type="button">Remove profile</button></div><p id="profile-summary" class="sr-only" role="status"></p></form>
           </div>
         </section>
       </main>
@@ -125,7 +132,7 @@
   </div>
   <dialog id="emergency-dialog" aria-labelledby="emergency-title" aria-describedby="emergency-description"><div class="dialog-top"><h2 id="emergency-title">Get emergency help</h2><button id="emergency-close" class="close-button" type="button" aria-label="Close emergency help">&times;</button></div><p id="emergency-description">If someone is in immediate danger, contact emergency services now. Do not wait for an AI response.</p><a class="call-button" href="tel:911">Call 911 (United States)</a><p><strong>Calling requires a working phone or supported calling app and available communication service.</strong> This link only opens your dialer. You must place the call yourself.</p><p>Outside the US, use your local emergency number. LifeLine does not place calls automatically, contact responders, or share your location. Offline AI does not provide a phone connection.</p><button id="emergency-library" class="primary-button" type="button">Open First-Aid Library</button></dialog>
   <dialog id="status-dialog" aria-labelledby="status-title"><div class="dialog-top"><h2 id="status-title">Connection &amp; readiness</h2><button id="status-close" class="close-button" type="button" aria-label="Close connection details">&times;</button></div><p id="status-explanation">Waiting for backend status.</p><dl class="resource-list"><div><dt>Local AI</dt><dd id="local-state">Not verified</dd></div><div><dt>Model</dt><dd id="model-name">Not verified</dd></div><div><dt>Medical Library</dt><dd id="references-state">Not verified</dd></div></dl><strong id="offline-label">Offline readiness unverified</strong><p>Internet access cannot currently be confirmed. Local AI and medical references are checked separately. AI availability does not mean emergency communication is available.</p><button id="refresh-status" class="text-button" type="button">Refresh status</button></dialog>
-  <dialog id="voice-dialog" aria-labelledby="voice-title" aria-describedby="voice-status"><div class="dialog-top"><h2 id="voice-title">Voice input</h2><button id="voice-close" class="close-button" type="button" aria-label="Close voice input">&times;</button></div><p id="voice-status" role="status">Offline voice input is not ready yet.</p><p id="voice-permission">Microphone access has not been requested. You can still type your question.</p><div class="form-actions"><button id="voice-start" class="primary-button" type="button" disabled>Start recording</button><button id="voice-stop" class="primary-button" type="button" hidden>Stop recording</button><button id="voice-cancel" class="text-button" type="button" hidden>Cancel recording</button></div><div id="voice-review" hidden><h3>Review your transcript</h3><p id="voice-transcript"></p><button id="voice-insert" class="primary-button" type="button">Insert into chat</button></div><p class="muted">Audio stays in memory and is discarded after use. Nothing is sent automatically.</p></dialog>
+  <dialog id="voice-dialog" aria-labelledby="voice-title" aria-describedby="voice-status"><div class="dialog-top"><h2 id="voice-title">Voice input</h2><button id="voice-close" class="close-button" type="button" aria-label="Close voice input">&times;</button></div><p id="voice-status" role="status">Offline voice input is not ready yet.</p><p id="voice-permission">Microphone access has not been requested. You can still type your question.</p><div class="form-actions"><button id="voice-start" class="primary-button" type="button" disabled>Start recording</button><button id="voice-stop" class="primary-button" type="button" hidden>Stop recording</button><button id="voice-cancel" class="text-button" type="button" hidden>Cancel recording</button></div><div id="voice-review" hidden><h3>Your transcript</h3><p id="voice-transcript"></p><button id="voice-insert" class="primary-button" type="button">Insert into chat</button></div><p class="muted">A local speech engine and transcription connection are not installed yet. When connected, stopping inserts text into your draft for editing, never sends it. Audio is held in memory only and is never permanently stored by this interface.</p></dialog>
   <dialog id="account-dialog" aria-labelledby="account-title" aria-describedby="account-description">
     <div class="dialog-top"><h2 id="account-title">Sign In</h2><button id="account-close" class="close-button" type="button" aria-label="Close account form">&times;</button></div>
     <p id="account-description"><span class="demo-badge">DEMO ONLY</span> Use made-up details, never a real password. No account is created and nothing is sent or saved. You can use LifeLine without signing in.</p>

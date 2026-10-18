@@ -5,7 +5,7 @@ Only static files reach the existing server. ALL browser API requests are interc
 unknown requests are blocked. No live model, backend startup, or real microphone is used.
 Chromium's fake media device exercises MediaRecorder/Blob capture, NOT real hardware or
 speech recognition. The explicitly TEST-only local adapter supplies a fixed transcript.
-The offline check installs a fresh v6 worker online, closes the page, then reopens and
+The offline check installs a fresh v7 worker online, closes the page, then reopens and
 reloads in the SAME browser context offline so its installed cache survives.
 """
 
@@ -289,6 +289,7 @@ def main():
               name: 'TEST FIXTURE adapter, NOT speech recognition', localOnly:true, ready:true,
               async transcribe(blob) {
                 testMedia.blobs.push({isBlob:blob instanceof Blob,size:blob.size,type:blob.type});
+                if (testMedia.transcribePending) await new Promise(r => testMedia.releaseTranscript = r);
                 if (testMedia.transcribeError) throw Error('TEST transcription unavailable');
                 return {text:testMedia.text || 'Fixture blue shape one'};
               }
@@ -297,12 +298,15 @@ def main():
         def all_stopped():
             page.wait_for_function("testMedia.streams.every(s => s.getTracks().every(t => t.readyState === 'ended'))")
 
-        def capture():
-            page.locator('#voice-start').click()
+        def capture(inserted=True):
             expect(page.locator('#voice-dialog')).to_have_attribute('data-listening', 'true')
+            expect(page.locator('#voice-permission')).to_have_text(
+                'Microphone permission granted. Recording is limited to 60 seconds.')
             page.wait_for_timeout(350)
             page.locator('#voice-stop').click()
-            expect(page.locator('#voice-review')).to_be_visible()
+            if inserted:
+                expect(page.locator('#voice-dialog')).not_to_be_visible()
+                expect(page.locator('#question')).to_be_focused()
             all_stopped()
 
         def default_voice():
@@ -312,11 +316,13 @@ def main():
             page.locator('#voice-open').click()
             expect(page.locator('#voice-status')).to_have_text('Offline voice input is not ready yet.')
             expect(page.locator('#voice-start')).to_be_disabled()
+            expect(page.locator('#voice-permission')).to_contain_text('has not been requested')
             page.wait_for_timeout(100)
             require(page.evaluate('testMedia.calls') == 0, 'Default voice requested microphone')
             require(len(calls) == before, 'Default voice requested network')
             shot('lifeline-voice.png')
             page.locator('#voice-close').click()
+            expect(page.locator('#question')).to_have_value('TEST manual draft')
             page.locator('#question').fill('TEST manual draft still editable')
             for value in ({'localOnly': False, 'ready': True}, {'localOnly': True, 'ready': False}):
                 require(not page.evaluate('(v) => LifeLineVoice.configure({...v, transcribe:async()=>({text:"Fixture"})})', value),
@@ -329,25 +335,43 @@ def main():
             page.locator('#question').fill('TEST manual draft')
             count = asks()
             before = len(calls)
+            media_before = page.evaluate('testMedia.calls')
             page.locator('#voice-open').click()
             capture()
-            expect(page.locator('#question')).to_have_value('TEST manual draft')
-            expect(page.locator('#voice-transcript')).to_have_text('Fixture blue shape one')
+            expect(page.locator('#question')).to_have_value('TEST manual draft\nFixture blue shape one')
+            require(page.evaluate('testMedia.calls') == media_before + 1, 'Mic click did not request capture once')
             blobs = page.evaluate('testMedia.blobs')
             require(blobs and all(b['isBlob'] and b['size'] > 0 for b in blobs), 'No captured Blob reached TEST adapter')
             require(len(calls) == before and asks() == count, 'Capture/transcription sent network request')
-            page.locator('#voice-insert').click()
-            expect(page.locator('#question')).to_have_value('TEST manual draft\nFixture blue shape one')
+            page.locator('#question').fill('TEST edited appended draft')
+            expect(page.locator('#question')).to_have_value('TEST edited appended draft')
             require(asks() == count, 'Transcript automatically submitted')
 
-        check('Voice: Chromium fake-device MediaRecorder Blob to TEST-only adapter, manual append/no submit', voice_capture)
+        check('Voice: mic auto-capture, real fake-device Blob, stop autoappends existing draft/closes/focuses, editable/no submit', voice_capture)
+
+        def voice_draft_race():
+            page.locator('#question').fill('TEST original draft')
+            page.evaluate('testMedia.transcribePending=true')
+            before = len(calls)
+            page.locator('#voice-open').click()
+            capture(inserted=False)
+            page.wait_for_function('typeof testMedia.releaseTranscript === "function"')
+            expect(page.locator('#voice-status')).to_contain_text('Transcribing locally')
+            page.evaluate("document.querySelector('#question').value='TEST typed edit during transcription'")
+            page.evaluate('testMedia.releaseTranscript(); testMedia.transcribePending=false')
+            expect(page.locator('#voice-dialog')).not_to_be_visible()
+            expect(page.locator('#question')).to_have_value('TEST typed edit during transcription\nFixture blue shape one')
+            require(len(calls) == before, 'Pending transcription requested network')
+
+        check('Voice: transcription preserves latest typed edit, autoappend without network/send', voice_draft_race)
 
         def voice_cleanup():
             configure()
             count = asks()
+            draft = page.locator('#question').input_value()
+            blobs = len(page.evaluate('testMedia.blobs'))
             for button in ('#voice-cancel', '#voice-close'):
                 page.locator('#voice-open').click()
-                page.locator('#voice-start').click()
                 expect(page.locator('#voice-dialog')).to_have_attribute('data-listening', 'true')
                 require(page.locator('#voice-status').evaluate("e=>getComputedStyle(e).animationName") == 'none',
                         'Reduced motion still pulses')
@@ -359,70 +383,114 @@ def main():
                     page.locator('#voice-close').click()
             page.evaluate("testMedia.mode='pending'")
             page.locator('#voice-open').click()
-            page.locator('#voice-start').click()
             page.wait_for_function('typeof testMedia.release === "function"')
             page.locator('#voice-close').click()
             page.evaluate("testMedia.release(); testMedia.mode='normal'")
             all_stopped()
             require(not page.evaluate('LifeLineVoice.active'), 'Permission race restarted recording')
+            expect(page.locator('#voice-dialog')).not_to_be_visible()
+            require(len(page.evaluate('testMedia.blobs')) == blobs, 'Cancelled capture reached adapter')
+            for button in ('#voice-cancel', '#voice-close'):
+                page.evaluate('testMedia.transcribePending=true; delete testMedia.releaseTranscript')
+                page.locator('#voice-open').click()
+                capture(inserted=False)
+                page.wait_for_function('typeof testMedia.releaseTranscript === "function"')
+                page.locator(button).click()
+                if button == '#voice-cancel':
+                    page.locator('#voice-close').click()
+                page.evaluate('testMedia.releaseTranscript(); testMedia.transcribePending=false')
+                page.wait_for_timeout(100)
+                expect(page.locator('#voice-dialog')).not_to_be_visible()
+                require(not page.evaluate('LifeLineVoice.active'), 'Cancelled transcription remained active')
+            expect(page.locator('#question')).to_have_value(draft)
+            require(asks() == count, 'Cancellation race submitted draft')
 
-        check('Voice: active-submit guard, reduced motion, cancel/close tracks, pending-permission race', voice_cleanup)
+        check('Voice: active-submit guard, reduced motion, cancel/close cleanup, permission/transcription races preserve draft', voice_cleanup)
 
         def voice_errors():
+            draft = page.locator('#question').input_value()
+            before = len(calls)
             for mode, message in (
                 ('denied', 'Microphone access is disabled. You can still type your question'),
                 ('error', 'Microphone recording is unavailable. You can still type your question.')):
                 page.evaluate('(mode) => testMedia.mode=mode', mode)
                 page.locator('#voice-open').click()
-                page.locator('#voice-start').click()
                 expect(page.locator('#voice-status')).to_have_text(message)
                 expect(page.locator('#voice-permission')).to_have_text(message)
                 page.locator('#voice-close').click()
+                expect(page.locator('#question')).to_have_value(draft)
             page.evaluate("testMedia.mode='normal'; testMedia.transcribeError=true")
             page.locator('#voice-open').click()
-            page.locator('#voice-start').click()
             expect(page.locator('#voice-dialog')).to_have_attribute('data-listening', 'true')
             page.wait_for_timeout(350)
             page.locator('#voice-stop').click()
             expect(page.locator('#voice-status')).to_have_text('Local transcription is unavailable. You can still type your question.')
             all_stopped()
             page.locator('#voice-close').click()
+            expect(page.locator('#question')).to_have_value(draft)
             page.evaluate('testMedia.transcribeError=false')
             # Hide the browser capture API to exercise availability detection.
             page.evaluate("window.testSavedRecorder=MediaRecorder; window.MediaRecorder=undefined")
             require(not page.evaluate("LifeLineVoice.configure({localOnly:true,ready:true,transcribe:async()=>({text:'Fixture'})})"),
                     'Missing capture API reported ready')
+            media_before = page.evaluate('testMedia.calls')
             page.locator('#voice-open').click()
             expect(page.locator('#voice-start')).to_be_disabled()
+            require(page.evaluate('testMedia.calls') == media_before, 'Unavailable capture requested microphone')
             page.locator('#voice-close').click()
             page.evaluate('() => { window.MediaRecorder=testSavedRecorder; }')
             configure()
+            page.locator('#question').fill('TEST typed after voice error')
+            expect(page.locator('#question')).to_have_value('TEST typed after voice error')
+            require(len(calls) == before, 'Voice error requested network/submitted draft')
 
         check('Voice: exact denied message, capture/transcription failure, unavailable browser API fallback', voice_errors)
 
         def voice_busy_length():
+            before = len(calls)
             page.locator('#question').fill('TEST draft')
+            media_before = page.evaluate('testMedia.calls')
+            page.evaluate("document.querySelector('#question').disabled=true")
             page.locator('#voice-open').click()
+            expect(page.locator('#voice-start')).to_be_disabled()
+            require(page.evaluate('testMedia.calls') == media_before, 'Busy mic click requested capture')
+            page.evaluate("document.querySelector('#question').disabled=false")
             page.evaluate("document.querySelector('#question').readOnly=true")
             expect(page.locator('#voice-start')).to_be_disabled()
             page.evaluate("document.querySelector('#question').readOnly=false")
-            capture()
-            page.evaluate("document.querySelector('#question').readOnly=true")
+            page.locator('#voice-close').click()
+            page.evaluate('testMedia.transcribePending=true; delete testMedia.releaseTranscript')
+            page.locator('#voice-open').click()
+            capture(inserted=False)
+            page.wait_for_function('typeof testMedia.releaseTranscript === "function"')
+            page.evaluate("document.querySelector('#question').disabled=true; testMedia.releaseTranscript(); testMedia.transcribePending=false")
+            expect(page.locator('#voice-status')).to_contain_text('Wait for the current answer')
+            expect(page.locator('#voice-review')).to_be_visible()
             expect(page.locator('#voice-insert')).to_be_disabled()
-            page.evaluate("document.querySelector('#question').readOnly=false; document.querySelector('#question').value='x'.repeat(2000)")
+            expect(page.locator('#question')).to_have_value('TEST draft')
+            page.evaluate("document.querySelector('#question').disabled=false; document.querySelector('#question').readOnly=true")
+            expect(page.locator('#voice-insert')).to_be_disabled()
+            page.evaluate("document.querySelector('#question').readOnly=false")
+            page.locator('#voice-close').click()
+            page.locator('#question').fill('x' * 2000)
+            page.locator('#voice-open').click()
+            capture(inserted=False)
+            expect(page.locator('#voice-review')).to_be_visible()
+            expect(page.locator('#voice-status')).to_contain_text('exceed the question length limit')
             page.locator('#voice-insert').click()
             expect(page.locator('#voice-status')).to_contain_text('exceed the question length limit')
             require(len(page.locator('#question').input_value()) == 2000, 'Length guard changed draft')
             page.locator('#voice-close').click()
             page.locator('#question').fill('TEST editable draft')
             page.locator('#voice-open').click()
-            page.locator('#voice-start').click()
             expect(page.locator('#voice-dialog')).to_have_attribute('data-listening', 'true')
             page.evaluate("document.querySelector('#question').readOnly=true")
             all_stopped()
             page.wait_for_function('!LifeLineVoice.active')
             page.evaluate("document.querySelector('#question').readOnly=false")
             page.locator('#voice-close').click()
+            expect(page.locator('#question')).to_have_value('TEST editable draft')
+            require(len(calls) == before, 'Busy/length guards requested network/submitted draft')
 
         check('Voice: busy/readOnly start/insert/capture cancellation, transcript length guard', voice_busy_length)
 
@@ -511,14 +579,14 @@ def main():
                       return {assets,workers:registrations.map(r=>({scope:r.scope,
                         active:r.active?.state,waiting:r.waiting?.state,installing:r.installing?.state}))};
                     }""")
-                    raise AssertionError('Fresh v6 worker did not activate; offline reopen/checklist checks blocked. '
+                    raise AssertionError('Fresh v7 worker did not activate; offline reopen/checklist checks blocked. '
                                          + json.dumps(diagnostics)) from exc
                 cached = online.evaluate("""async () => {
                     const names=await caches.keys();
-                    const c=await caches.open('lifeline-shell-v6');
+                    const c=await caches.open('lifeline-shell-v7');
                     return {names,urls:(await c.keys()).map(r=>new URL(r.url).pathname)};
                 }""")
-                require('lifeline-shell-v6' in cached['names'], 'Fresh v6 cache missing')
+                require('lifeline-shell-v7' in cached['names'], 'Fresh v7 cache missing')
                 scripts = online.locator('script[src]').evaluate_all('(els)=>els.map(e=>new URL(e.src).pathname)')
                 for script in scripts:
                     require(script in cached['urls'], 'Uncached script: ' + script)
@@ -545,14 +613,14 @@ def main():
                 # Exercise fetch policy: status must fail offline, not return an old fixture.
                 require(off.evaluate("async()=>{try {await fetch('/api/status');return false;}catch{return true;}}"),
                         'API was served from cache offline')
-                final_urls = off.evaluate("async()=>{const c=await caches.open('lifeline-shell-v6');return (await c.keys()).map(r=>r.url)}")
+                final_urls = off.evaluate("async()=>{const c=await caches.open('lifeline-shell-v7');return (await c.keys()).map(r=>r.url)}")
                 require(not any('/api/' in u for u in final_urls), 'API entered cache')
-                print('INFO fresh v6 cached scripts: ' + ', '.join(scripts), flush=True)
+                print('INFO fresh v7 cached scripts: ' + ', '.join(scripts), flush=True)
             finally:
                 offline_ctx.close()
                 state['offline'] = False
 
-        check('PWA: fresh online v6 install, close/reopen/reload offline, working scripts/checklist, empty library, no API cache', offline)
+        check('PWA: fresh online v7 install, close/reopen/reload offline, working scripts/checklist, empty library, no API cache', offline)
         check('Isolation: no unexpected network or non-fixture inference payloads', lambda: require(
             not blocked and all(c['body'] and json.loads(c['body']) ==
                 {'question': 'TEST fixture request: shapes only, nonmedical'}

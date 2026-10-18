@@ -5,6 +5,21 @@ The adapter connects to an externally managed persistent llama-server. It does
 not launch or reconfigure that process: the CPU settings below are mandatory.
 No Python dependency changes are required beyond the existing FastAPI environment.
 
+## Validated Dell Runtime
+
+Use the **official b11490 Windows ARM64 CPU build** for the current demo.
+Kiran reports coherent short/long CLI output and server output with the full
+unchanged LifeLine system instruction using the same Qwen2.5-3B-Instruct Q4_K_M
+GGUF. The b11680 Windows ARM64 CPU build produced gibberish on long prompts.
+This is a validated-build choice on this Dell, not a proven upstream root cause.
+CLI measurements and the regression/website checklist are recorded in
+[LLAMA_RUNTIME_VALIDATION.md](LLAMA_RUNTIME_VALIDATION.md).
+
+Select b11490 by explicit executable path; do not let PATH/WinGet silently select
+b11680 or mix DLLs from different bundles. Keep the exact tested launch command
+and inspect b11490's own `--help` before using flags from older investigations.
+Website end-to-end testing on port 8000 is still in progress.
+
 ## Find Existing Model And Server
 
 Run from the LifeLine repository root in PowerShell. Search the llama.cpp cache
@@ -42,10 +57,11 @@ is silently substituted. Verify `llama-server --help` supports the flags below.
 Replace the following two paths with the actual local paths just found:
 
 ```powershell
-$server = 'C:\path\to\llama-server.exe'
+$server = 'C:\path\to\b11490-cpu-arm64\llama-server.exe'
 $gguf = 'C:\path\to\qwen2.5-3b-instruct-q4_k_m.gguf'
 if (!(Test-Path -LiteralPath $server)) { throw 'llama-server.exe is missing' }
 if (!(Test-Path -LiteralPath $gguf)) { throw 'GGUF file is missing' }
+& $server --version
 & $server --help
 & $server -m $gguf --host 127.0.0.1 --port 8081 --alias lifeline-qwen --n-gpu-layers 0 --device none --no-kv-offload --no-op-offload --temp 0 --chat-template chatml --check-tensors --ctx-size 4096 --parallel 1 --offline
 ```

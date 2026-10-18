@@ -14,3 +14,25 @@ def classify(text: str) -> dict:
     high = ['injured', 'bleeding', 'fire', 'flood', 'stranded']
     urgency = 'critical' if any(w in t for w in critical) else 'high' if any(w in t for w in high) else 'medium'
     return {'category': category, 'urgency': urgency, 'confidence': None, 'engine': 'rules-baseline'}
+
+# EXECUTORCH_SHADOW_START
+# ExecuTorch predicts category; existing safety rules remain authoritative.
+_rules_classify = classify
+
+def classify(text: str) -> dict:
+    result = _rules_classify(text)
+
+    try:
+        from offline_ai.executorch_classifier import predict_category
+        prediction = predict_category(text)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("ExecuTorch inference failed")
+        return result
+
+    if prediction in {"medical", "rescue", "fire", "supplies", "other"}:
+        result["model_category"] = prediction
+        result["engine"] = "rules-baseline+executorch-cpu"
+
+    return result
+# EXECUTORCH_SHADOW_END

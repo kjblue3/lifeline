@@ -34,6 +34,9 @@ with closing(connect()) as conn:
         synced INTEGER NOT NULL DEFAULT 0)''')
     conn.execute('''CREATE TABLE IF NOT EXISTS cloud_reports (
         id TEXT PRIMARY KEY, payload TEXT NOT NULL)''')
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(reports)")}
+    if "model_category" not in columns:
+        conn.execute("ALTER TABLE reports ADD COLUMN model_category TEXT")
     conn.commit()
 
 @app.get('/status')
@@ -56,8 +59,8 @@ def add_report(payload: ReportIn):
     report = {'id': str(uuid.uuid4()), 'text': payload.text, 'created_at': time.time(), **result}
     # Always commit locally before attempting any remote action.
     with lock, closing(connect()) as conn:
-        conn.execute('INSERT INTO reports (id,text,category,urgency,engine,created_at,synced) VALUES (?,?,?,?,?,?,0)',
-                     (report['id'], report['text'], report['category'], report['urgency'], report['engine'], report['created_at']))
+        conn.execute('INSERT INTO reports (id,text,category,urgency,engine,model_category,created_at,synced) VALUES (?,?,?,?,?,?,?,0)',
+                     (report['id'], report['text'], report['category'], report['urgency'], report['engine'], report.get('model_category'), report['created_at']))
         conn.commit()
     if cloud_available:
         sync()

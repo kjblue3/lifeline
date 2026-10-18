@@ -1,0 +1,75 @@
+﻿.et-demo {
+  max-width: 780px;
+  margin: 24px auto;
+  padding: 24px;
+}
+
+.et-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  opacity: .7;
+}
+
+.et-demo h2 {
+  margin: 8px 0 12px;
+}
+
+.et-demo form {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.et-demo textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #8888;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.et-demo button {
+  justify-self: start;
+}
+
+.et-results {
+  border: 1px solid #8886;
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.et-results[hidden] {
+  display: none;
+}
+
+.et-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.et-grid dt {
+  font-size: 12px;
+  opacity: .7;
+}
+
+.et-grid dd {
+  margin: 6px 0 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.et-disclaimer {
+  margin-top: 18px;
+  font-size: 12px;
+  opacity: .75;
+}
+
+@media (max-width: 600px) {
+  .et-grid { grid-template-columns: 1fr; }
+  .et-demo { padding: 16px; }
+}

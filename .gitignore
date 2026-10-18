@@ -26,3 +26,4 @@ offline_ai/.venv/
 offline_ai/.venv-x64/
 offline_ai/models/
 offline_ai/*.pte
+*.gguf

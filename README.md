@@ -1,129 +1,79 @@
 # LifeLine
 
-A local-first emergency-assistance **prototype** for the Qualcomm ExecuTorch
-Hackathon 2026. Chat connects the browser to FastAPI and Google's Gemini API.
-A server-side Gemini API key is required; without it requests fail explicitly,
-never with a fake answer. Verified medical retrieval is not connected.
-Use fictional scenarios only, never real health information.
+A fully local emergency-information **prototype** for the Qualcomm hackathon.
+The existing FastAPI application serves both the website and `/api/ask` on port
+8000. Qwen2.5-3B-Instruct Q4_K_M runs in a separate loopback llama-server on port
+8081, using the currently validated **b11490 Windows ARM64 CPU** build on Kiran's
+Snapdragon X Elite Dell. This is not ExecuTorch or verified NPU inference.
 
-## Run On The Dell
+No cloud AI service or Gemini key is used by the current application. No model,
+runtime binary or virtual environment is included in Git. Use fictional scenarios
+for the prototype, not real personal/health information. Keep services bound to
+`127.0.0.1`, not the public internet; this demo has no authentication.
 
-From the project folder in Windows PowerShell, with native Windows ARM64 Python
-3.11 or newer installed:
+## Offline Medical RAG
 
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
-```
+Follow **[MEDICAL_RAG.md](MEDICAL_RAG.md)** for the complete setup, generated-DB
+backup/reinstallation steps, live acceptance commands and current limitations.
+The installer runs without internet and creates a new generated database; it
+does not replace the committed 100-topic catalog. Only ten MedlinePlus topic
+summaries are populated: Bleeding, Burns, Choking, Poisoning, Heat Illness,
+Hypothermia, Frostbite, Dehydration, Sprains and Strains, and Wounds and Injuries.
+The other 90 entries, including Fractures, are catalog-only, not usable articles.
 
-Open **http://127.0.0.1:8000/**. The backend serves the frontend too; no second
-server, Node.js, or CORS setup is needed. Keep the terminal running.
-Configure the API key below before starting the server. Cloud chat requires
-internet access; offline AI and automatic offline switching are not enabled.
-Windows ARM64 dependency installation and inference still need testing on the Dell.
-Transfer the source through GitHub, not the cloud machine's `.venv` directory.
-
-Linux/macOS:
-
-```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000
-```
-
-## Cloud Configuration
-
-Create a Gemini Developer API key at **https://aistudio.google.com/apikey**
-for a project authorized to use the Gemini API, with sufficient quota/billing.
-LifeLine reads **`GEMINI_API_KEY`** from the backend process environment.
-CoShell subscriptions/internal tokens do not grant this application API access.
-Do not put the key in frontend code, Git, screenshots, or chat messages.
-
-PowerShell, before the Uvicorn command:
+After installing references, keep the existing validated b11490 CPU-only model
+server running on port 8081. In another PowerShell terminal at the project root:
 
 ```powershell
-$env:GEMINI_API_KEY = Read-Host 'Gemini API key' -MaskInput
+$python = '.\offline_ai\.venv-x64\Scripts\python.exe'
+$env:LIFELINE_GGUF_PATH = 'C:\REPLACE\actual-qwen2.5-3b-instruct-q4_k_m.gguf'
+$env:LIFELINE_LLAMA_PORT = '8081'
+$env:LIFELINE_RAG = '1'
+& $python -m uvicorn offline_ai.llama_adapter:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-Linux/macOS Bash, before the Uvicorn command:
+Open **http://127.0.0.1:8000/**. No separate frontend server, build step or CORS
+configuration is needed. Use the working installed environment; do not copy a
+Linux virtual environment onto Windows. On macOS use the corresponding working
+local environment and runtime; installation uses standard Python/SQLite FTS5.
 
-```bash
-read -rs -p 'Gemini API key: ' GEMINI_API_KEY
-export GEMINI_API_KEY
-```
+Qwen selects IDs from trusted retrieved references; final medical text and
+citations are extracted from pinned installed records, not generated treatments.
+Ambiguous, unsupported, negated or ungrounded selections fail explicitly. The
+reference library is not a complete first-aid protocol collection or clinical
+validation. For immediate danger, contact local emergency services and follow
+dispatcher instructions; do not wait for this chat.
 
-Restart the backend after setting the environment. The default model is
-`gemini-2.5-flash`; optionally set `GEMINI_MODEL` to another available Gemini
-model ID. No `.env` file is loaded automatically. Status reports configured
-when a key exists, and ready only after successful inference. It is not a
-continuous network probe. Requests have a bounded 25-second cloud deadline.
-
-## Try It
-
-1. Open the homepage and confirm cloud AI is configured.
-2. Enter a fictional question, such as “My fictional hiking partner injured an ankle.”
-3. Press Enter or the send arrow. A real Gemini answer appears with a **CLOUD AI** badge, or an explicit configuration/provider error appears and your question is retained.
-4. Check offline readiness: local model/references remain uninstalled; cloud readiness updates after a successful call.
-5. Try an optional fictional profile. It stays in page memory and is never sent to the API.
-
-Only the current question is sent to Google, not the profile or chat history;
-Google's API data-handling terms apply. Questions are not stored by LifeLine's
-chat API. Reloading clears the conversation
-and profile. Frontend assets have no external font, script, or CDN dependencies.
-The preserved **legacy report demo** at `/legacy` does store reports in SQLite;
-its cloud switch and sync remain simulations. Do not enter real medical data there.
-There is no authentication; keep the prototype bound to localhost, not the public internet.
-
-## API
+## API And Verification
 
 - `GET /api/health`: backend health.
-- `GET /api/status`: configured cloud provider/model and last-inference readiness; local/reference readiness remains false.
-- `POST /api/ask`: JSON `{"question":"A fictional scenario"}`, 1-2000 characters.
-- `/docs`: interactive API documentation.
+- `GET /api/status`: local provider and reference availability; `offline_ready`
+  remains false because this is not a complete emergency system.
+- `POST /api/ask`: `{"question":"A fictional scenario"}`. Only the current
+  question is sent, not profile/history. RAG has a documented 1200 UTF-8-byte limit.
+- Success: `{"ok":true,"data":{id,answer,mode,simulated,sources,notice}}`.
+- Failures: `{"ok":false,"error":{code,message}}`; missing references or unsafe
+  model selections fail closed with HTTP 503.
+- `/docs`: existing API documentation.
 
-Successful API responses use `{"ok":true,"data":{...}}`. Invalid chat requests
-return HTTP 422 with `{"ok":false,"error":{"code":"invalid_request","message":"..."}}`.
-Answers contain `id`, `answer`, `mode`, `simulated`, `sources`, and `notice`.
-Sources are empty deliberately: none are installed, and citations are not invented.
-Provider failures use the same error envelope with HTTP 503 (missing key),
-504 (timeout), or 502 (upstream failure, rejected credentials/quota, blocked,
-incomplete, or malformed answer). There is no mock or offline fallback.
+Without `LIFELINE_RAG=1`, the pre-existing provider-only mode returns ungrounded
+model text; do not use that mode to demonstrate reference-backed medical answers.
+Launching only `app:app` selects the disconnected placeholder in a fresh process.
 
-## Integration Boundaries
-
-- Aryan: `web/`, `chat.py`, and FastAPI assembly in `app.py`.
-- Kiran: implement the async `InferenceProvider.answer(question) -> Answer` boundary in a separate local-model adapter after confirming ExecuTorch text inference on the Dell. No ExecuTorch implementation has been changed here.
-- Kanishk: prepare verified references with source metadata in a separate knowledge collection. No reference collection has been changed here.
-
-`inference.py` defines the shared `InferenceProvider.answer(question) -> Answer`
-contract; `cloud_ai.py` implements Gemini separately from the API and database.
-`chat.py` selects this cloud adapter only. Kiran can implement the same contract
-later without changing the cloud transport. Automatic offline switching is not
-implemented. No local model or medical database files were changed.
-
-The system instruction identifies LifeLine as a first-aid information assistant,
-not a doctor. Because verified references are unavailable, it requires disclosing
-that limitation, prohibits fabricated treatments/citations and step-by-step
-treatment instructions, and prioritizes emergency services for serious situations.
-The UI also displays a fixed limitation notice. These safeguards are not medical
-validation; generated text can still be wrong. LifeLine is not a replacement for
-emergency services or medical professionals.
-
-## Tests
-
-```sh
-python -m pip install -r requirements-dev.txt
-python -m unittest -v test_chat
-python -m playwright install chromium
-python browser_check.py
+```powershell
+& $python -B -m unittest -v test_medical_rag test_chat test_llama_adapter
+$results = Join-Path $env:TEMP ('lifeline-rag-live-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.jsonl')
+& $python -B test_medical_rag.py --live --output $results
 ```
 
-Unit tests use mock HTTP transport, not live inference. The browser check needs
-a running server without a configured API key (default port 8000, override with
-`--base-url`). It verifies the real missing-key failure, then explicitly mocks
-API answers for rendering checks; it does not prove live Gemini inference.
-Screenshots go under the system temporary directory's `lifeline-browser/` (override with
-`--artifacts-dir`). Playwright is a development tool, not a runtime
-dependency required on the Dell. On Linux, Chromium may also need system
-libraries installed with `python -m playwright install-deps chromium`.
+Unit/browser tests use clearly labeled model fixtures, not real Qwen inference.
+The opt-in live mode needs both existing services, the local GGUF, and installed
+references. Review relevance/citations manually, then repeat with Wi-Fi off.
+The browser regression uses the existing Playwright development dependencies.
+See [offline_ai/LLAMA_CPP.md](offline_ai/LLAMA_CPP.md) and
+[runtime validation](offline_ai/LLAMA_RUNTIME_VALIDATION.md) for runtime setup.
+
+The preserved report demo at `/legacy` stores reports in SQLite; its cloud switch
+and sync are simulations, separate from local chat. Never enter real medical data
+there. The standalone browser library and packing checklist are separate from
+backend RAG/reference status; see [FRONTEND_FEATURES.md](FRONTEND_FEATURES.md).

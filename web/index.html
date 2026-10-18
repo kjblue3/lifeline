@@ -69,12 +69,15 @@
           <p class="safety-note"><strong>In immediate danger? Contact emergency services, not this chat.</strong> AI can make mistakes and is not a doctor.</p>
         </section>
         <section id="screen-library" class="screen" aria-labelledby="library-title" hidden>
-          <div class="section-heading"><h1 id="library-title">Find helpful first-aid information even without internet</h1></div>
-          <p id="library-status" role="status">First-aid library status is unknown.</p>
+          <div class="section-heading"><h1 id="library-title">First-Aid Library</h1><p>Medical information summaries available offline.</p></div>
+          <p class="feature-notice">In immediate danger, contact emergency services now. Do not wait for this library or AI. These summaries are not complete first-aid protocols and do not replace professional medical care. Phone numbers in the source summaries, including 1-800-222-1222 for poison control, are for the United States; outside the US, use local emergency and poison-control services. Calling requires an available phone connection.</p>
+          <p id="library-status" role="status">Loading local medical information summaries...</p>
           <div id="library-browse">
-            <label for="library-search">Search the local library</label><input id="library-search" type="search" placeholder="Search first-aid information" disabled aria-describedby="library-empty">
+            <label for="library-search">Search the local library</label><input id="library-search" type="search" placeholder="Search titles or summary keywords" disabled aria-describedby="library-results">
             <div id="library-categories" class="library-categories" role="group" aria-label="Filter by category"></div>
-            <p id="library-empty" role="status">No completed first-aid articles are available on this device.</p>
+            <div id="library-alphabet" class="library-categories" role="group" aria-label="Filter by title initial"></div>
+            <p id="library-results" role="status"></p>
+            <p id="library-empty" role="status" hidden>No matching medical information found.</p>
             <div id="library-cards" class="library-cards"></div>
           </div>
           <div id="library-detail" hidden><button id="library-back" class="text-button" type="button">Back to library</button><article id="library-article" class="content-card" tabindex="-1"></article></div>
